@@ -321,7 +321,10 @@ class TimeTrackerBackend(QObject):
         self._session_start = None
         self._elapsed = 0
         self._last_checkin = None
+        self._checkin_shown_at = None
         self._eod_dismissed = False
+
+        self.INACTIVITY_TIMEOUT = 30 * 60  # seconds before auto-stopping if no check-in response
 
         self._project_model = ProjectListModel(self)
         self._history_model = HistoryListModel(self)
@@ -436,6 +439,7 @@ class TimeTrackerBackend(QObject):
         self._session_start = None
         self._elapsed = 0
         self._last_checkin = None
+        self._checkin_shown_at = None
         self.activeProjectChanged.emit()
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
@@ -467,6 +471,7 @@ class TimeTrackerBackend(QObject):
     @Slot()
     def checkInYes(self):
         self._last_checkin = time.time()
+        self._checkin_shown_at = None
 
     @Slot()
     def checkInNo(self):
@@ -559,8 +564,13 @@ class TimeTrackerBackend(QObject):
 
         # Check-in
         if self._active_project and self._last_checkin:
+            # Auto-stop if the check-in dialog has been unanswered for too long
+            if self._checkin_shown_at and time.time() - self._checkin_shown_at >= self.INACTIVITY_TIMEOUT:
+                self.stopTimer()
+                return
             if time.time() - self._last_checkin >= self._data["checkInInterval"] * 60:
                 self._last_checkin = time.time()
+                self._checkin_shown_at = time.time()
                 self.showCheckIn.emit()
 
         # EOD prompt

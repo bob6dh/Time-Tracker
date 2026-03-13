@@ -10,6 +10,44 @@ Dialog {
     width: 340
     closePolicy: Popup.NoAutoClose
 
+    property int secondsLeft: 30 * 60
+
+    function formatCountdown(secs) {
+        var m = Math.floor(secs / 60)
+        var s = secs % 60
+        return m + ":" + (s < 10 ? "0" + s : s)
+    }
+
+    onOpened: {
+        secondsLeft = 30 * 60
+        countdownTimer.start()
+    }
+
+    onClosed: {
+        countdownTimer.stop()
+    }
+
+    // Auto-close if the backend stops the timer (inactivity or user clicked No)
+    Connections {
+        target: backend
+        function onActiveProjectChanged() {
+            if (backend.activeProject === "" && checkInDialog.visible) {
+                checkInDialog.close()
+            }
+        }
+    }
+
+    Timer {
+        id: countdownTimer
+        interval: 1000
+        repeat: true
+        onTriggered: {
+            if (checkInDialog.secondsLeft > 0) {
+                checkInDialog.secondsLeft--
+            }
+        }
+    }
+
     ColumnLayout {
         width: parent.width
         spacing: 4
@@ -82,6 +120,14 @@ Dialog {
                     }
                 }
             }
+        }
+
+        Label {
+            Layout.topMargin: 10
+            Layout.alignment: Qt.AlignHCenter
+            text: "Auto-stopping in " + checkInDialog.formatCountdown(checkInDialog.secondsLeft)
+            font.pixelSize: 12
+            color: checkInDialog.secondsLeft <= 60 ? "#ef4444" : "#9ca3af"
         }
     }
 }
