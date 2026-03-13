@@ -483,7 +483,8 @@ Item {
                                     radius: 3
                                     color: {
                                         var colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
-                                        return colors[index % colors.length]
+                                        var i = (index !== undefined && index >= 0) ? index : 0
+                                        return colors[i % colors.length]
                                     }
                                 }
                             }
