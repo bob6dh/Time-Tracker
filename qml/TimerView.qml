@@ -198,18 +198,36 @@ Item {
                                 }
                             }
 
+                            // Remove button
+                            Label {
+                                text: "\u2715"
+                                font.pixelSize: 15
+                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
+                                Layout.rightMargin: 4
+
+                                MouseArea {
+                                    id: removeMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.removeProject(name)
+                                }
+                            }
+
                             // Active badge or Start button
                             Rectangle {
                                 visible: isActive
-                                width: activeLbl.implicitWidth + 16
-                                height: activeLbl.implicitHeight + 4
-                                radius: 4
+                                width: activeLbl.implicitWidth + 20
+                                height: 32
+                                radius: 16
                                 color: "#dbeafe"
+                                border.color: "#93c5fd"
+                                border.width: 1
 
                                 Label {
                                     id: activeLbl
                                     anchors.centerIn: parent
-                                    text: "Active"
+                                    text: "● Active"
                                     font.pixelSize: 12
                                     font.bold: true
                                     color: "#2563eb"
@@ -218,39 +236,42 @@ Item {
 
                             Rectangle {
                                 visible: !isActive
-                                width: startLbl.implicitWidth + 28
-                                height: 32
-                                radius: 4
-                                color: startMa.containsMouse ? "#374151" : "#1f2937"
+                                width: startRow.implicitWidth + 24
+                                height: 34
+                                radius: 17
 
-                                Label {
-                                    id: startLbl
-                                    anchors.centerIn: parent
-                                    text: "Start"
-                                    font.pixelSize: 13
-                                    color: "white"
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0.0; color: startMa.containsMouse ? "#15803d" : "#16a34a" }
+                                    GradientStop { position: 1.0; color: startMa.containsMouse ? "#166534" : "#15803d" }
                                 }
+
+                                Row {
+                                    id: startRow
+                                    anchors.centerIn: parent
+                                    spacing: 5
+
+                                    Label {
+                                        text: "\u25B6"
+                                        font.pixelSize: 10
+                                        color: "white"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Label {
+                                        text: "Start"
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        color: "white"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+
                                 MouseArea {
                                     id: startMa
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.startProject(name)
-                                }
-                            }
-
-                            // Remove button
-                            Label {
-                                text: "\u2715"
-                                font.pixelSize: 16
-                                color: removeMa.containsMouse ? "#ef4444" : "#adb5bd"
-
-                                MouseArea {
-                                    id: removeMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.removeProject(name)
                                 }
                             }
                         }
