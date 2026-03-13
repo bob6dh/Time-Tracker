@@ -49,7 +49,7 @@ ApplicationWindow {
             Layout.bottomMargin: 10
 
             Repeater {
-                model: ["timer", "history", "settings"]
+                model: ["timer", "history", "reports", "settings"]
 
                 Rectangle {
                     required property string modelData
@@ -87,7 +87,8 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: root.currentView === "timer" ? 0
-                        : root.currentView === "history" ? 1 : 2
+                        : root.currentView === "history" ? 1
+                        : root.currentView === "reports" ? 2 : 3
 
             TimerView {}
 
@@ -110,6 +111,8 @@ ApplicationWindow {
                     }
                 }
             }
+
+            ReportView {}
 
             SettingsView {}
         }
