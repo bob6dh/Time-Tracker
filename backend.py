@@ -1,7 +1,8 @@
 import json
 import os
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+import calendar
 
 from PySide6.QtCore import (
     QObject, Property, Signal, Slot, QTimer, QAbstractListModel,
@@ -107,22 +108,34 @@ class HistoryListModel(QAbstractListModel):
         return len(self._sorted_days())
 
     def _sorted_days(self):
-        return sorted(self._backend._data["dailyLogs"].keys(), reverse=True)
+        days = set(self._backend._data["dailyLogs"].keys())
+        # Include today if there's an active session even before first stop
+        if self._backend._active_project and self._backend._session_start:
+            days.add(date.today().isoformat())
+        return sorted(days, reverse=True)
 
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
         day = self._sorted_days()[index.row()]
-        log = self._backend._data["dailyLogs"][day]
+        log = self._backend._data["dailyLogs"].get(day, {})
         if role == self.DateKeyRole:
             return day
         if role == self.DateLabelRole:
             return fmt_date(day)
         if role == self.ProjectCountRole:
-            n = len(log)
+            projects = set(log.keys())
+            today_str = date.today().isoformat()
+            if day == today_str and self._backend._active_project:
+                projects.add(self._backend._active_project)
+            n = len(projects)
             return f"{n} project{'s' if n != 1 else ''}"
         if role == self.TotalTimeRole:
-            return fmt_time(sum(v["seconds"] for v in log.values()))
+            total = sum(v["seconds"] for v in log.values())
+            today_str = date.today().isoformat()
+            if day == today_str and self._backend._active_project and self._backend._session_start:
+                total += int(time.time() - self._backend._session_start)
+            return fmt_time(total)
         return None
 
     def refresh(self):
@@ -226,6 +239,64 @@ class EodModel(QAbstractListModel):
             self._items[index]["description"] = desc
 
 
+# ── Report model ───────────────────────────────────────────────
+
+
+class ReportModel(QAbstractListModel):
+    ProjectRole = Qt.UserRole + 1
+    TimeRole = Qt.UserRole + 2
+    SecondsRole = Qt.UserRole + 3
+
+    def __init__(self, backend, parent=None):
+        super().__init__(parent)
+        self._backend = backend
+        self._items = []
+
+    def roleNames(self):
+        return {
+            self.ProjectRole: QByteArray(b"project"),
+            self.TimeRole: QByteArray(b"time"),
+            self.SecondsRole: QByteArray(b"seconds"),
+        }
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._items)
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        item = self._items[index.row()]
+        if role == self.ProjectRole:
+            return item["project"]
+        if role == self.TimeRole:
+            return fmt_time(item["seconds"])
+        if role == self.SecondsRole:
+            return item["seconds"]
+        return None
+
+    def load(self, date_keys):
+        totals = {}
+        for dk in date_keys:
+            log = self._backend._data["dailyLogs"].get(dk, {})
+            for proj, info in log.items():
+                totals[proj] = totals.get(proj, 0) + info["seconds"]
+        # Include active session time if today is in the range
+        today = date.today().isoformat()
+        if today in date_keys and self._backend._active_project and self._backend._session_start:
+            proj = self._backend._active_project
+            totals[proj] = totals.get(proj, 0) + int(time.time() - self._backend._session_start)
+        self.beginResetModel()
+        self._items = sorted(
+            [{"project": p, "seconds": s} for p, s in totals.items()],
+            key=lambda x: x["seconds"], reverse=True,
+        )
+        self.endResetModel()
+
+    @property
+    def total_seconds(self):
+        return sum(i["seconds"] for i in self._items)
+
+
 # ── Main backend ────────────────────────────────────────────────
 
 
@@ -238,6 +309,10 @@ class TimeTrackerBackend(QObject):
     showCheckIn = Signal()
     showEod = Signal()
     hasTodayLogsChanged = Signal()
+    reportPeriodChanged = Signal()
+    reportLabelChanged = Signal()
+    reportTotalChanged = Signal()
+    reportTotalSecondsChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -252,6 +327,9 @@ class TimeTrackerBackend(QObject):
         self._history_model = HistoryListModel(self)
         self._day_detail_model = DayDetailModel(self)
         self._eod_model = EodModel(self)
+        self._report_model = ReportModel(self)
+        self._report_period = "day"
+        self._report_offset = 0
 
         self._timer = QTimer(self)
         self._timer.setInterval(1000)
@@ -297,6 +375,26 @@ class TimeTrackerBackend(QObject):
     def eodModel(self):
         return self._eod_model
 
+    @Property(QObject, constant=True)
+    def reportModel(self):
+        return self._report_model
+
+    @Property(str, notify=reportPeriodChanged)
+    def reportPeriod(self):
+        return self._report_period
+
+    @Property(str, notify=reportLabelChanged)
+    def reportLabel(self):
+        return self._get_report_label()
+
+    @Property(str, notify=reportTotalChanged)
+    def reportTotal(self):
+        return fmt_time(self._report_model.total_seconds)
+
+    @Property(int, notify=reportTotalSecondsChanged)
+    def reportTotalSeconds(self):
+        return self._report_model.total_seconds
+
     # ── Slots ──
 
     @Slot(str)
@@ -328,6 +426,7 @@ class TimeTrackerBackend(QObject):
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
         self._project_model.refresh()
+        self._history_model.refresh()
 
     @Slot()
     def stopTimer(self):
@@ -341,6 +440,7 @@ class TimeTrackerBackend(QObject):
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
         self._project_model.refresh()
+        self._history_model.refresh()
         self.hasTodayLogsChanged.emit()
 
     @Slot(int)
@@ -398,6 +498,28 @@ class TimeTrackerBackend(QObject):
         self._history_model.refresh()
         self.hasTodayLogsChanged.emit()
 
+    @Slot(str)
+    def setReportPeriod(self, period):
+        self._report_period = period
+        self._report_offset = 0
+        self._load_report()
+        self.reportPeriodChanged.emit()
+
+    @Slot()
+    def reportPrev(self):
+        self._report_offset -= 1
+        self._load_report()
+
+    @Slot()
+    def reportNext(self):
+        if self._report_offset < 0:
+            self._report_offset += 1
+            self._load_report()
+
+    @Slot()
+    def refreshReport(self):
+        self._load_report()
+
     # ── Internal ──
 
     def _log_time(self, secs):
@@ -431,8 +553,9 @@ class TimeTrackerBackend(QObject):
             self._elapsed = int(time.time() - self._session_start)
             self.elapsedChanged.emit()
             self.elapsedTextChanged.emit()
-            # Refresh project model to update "today" times for active project
+            # Refresh models to update "today" times for active project
             self._project_model.refresh()
+            self._history_model.refresh()
 
         # Check-in
         if self._active_project and self._last_checkin:
@@ -451,3 +574,61 @@ class TimeTrackerBackend(QObject):
                 if has_time and not all_descs:
                     self._eod_dismissed = True
                     self.openEodDialog()
+
+    def _get_report_date_keys(self):
+        today = date.today()
+        if self._report_period == "day":
+            target = today + timedelta(days=self._report_offset)
+            return [target.isoformat()]
+        elif self._report_period == "week":
+            start = today - timedelta(days=today.weekday()) + timedelta(weeks=self._report_offset)
+            return [(start + timedelta(days=i)).isoformat() for i in range(7)]
+        elif self._report_period == "month":
+            month = today.month + self._report_offset
+            year = today.year
+            while month <= 0:
+                month += 12
+                year -= 1
+            while month > 12:
+                month -= 12
+                year += 1
+            days_in_month = calendar.monthrange(year, month)[1]
+            return [date(year, month, d + 1).isoformat() for d in range(days_in_month)]
+        return []
+
+    def _get_report_label(self):
+        today = date.today()
+        if self._report_period == "day":
+            target = today + timedelta(days=self._report_offset)
+            if self._report_offset == 0:
+                return "Today"
+            elif self._report_offset == -1:
+                return "Yesterday"
+            return target.strftime("%a, %b %d, %Y")
+        elif self._report_period == "week":
+            start = today - timedelta(days=today.weekday()) + timedelta(weeks=self._report_offset)
+            end = start + timedelta(days=6)
+            if self._report_offset == 0:
+                return f"This Week ({start.strftime('%b %d')} \u2013 {end.strftime('%b %d')})"
+            return f"{start.strftime('%b %d')} \u2013 {end.strftime('%b %d, %Y')}"
+        elif self._report_period == "month":
+            month = today.month + self._report_offset
+            year = today.year
+            while month <= 0:
+                month += 12
+                year -= 1
+            while month > 12:
+                month -= 12
+                year += 1
+            target = date(year, month, 1)
+            if self._report_offset == 0:
+                return f"This Month ({target.strftime('%B %Y')})"
+            return target.strftime("%B %Y")
+        return ""
+
+    def _load_report(self):
+        keys = self._get_report_date_keys()
+        self._report_model.load(keys)
+        self.reportLabelChanged.emit()
+        self.reportTotalChanged.emit()
+        self.reportTotalSecondsChanged.emit()
