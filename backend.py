@@ -1,8 +1,12 @@
 import json
 import os
 import time
-from datetime import datetime, date, timedelta
 import calendar
+from datetime import datetime, date, timedelta
+
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 from PySide6.QtCore import (
     QObject, Property, Signal, Slot, QTimer, QAbstractListModel,
@@ -313,6 +317,7 @@ class TimeTrackerBackend(QObject):
     reportLabelChanged = Signal()
     reportTotalChanged = Signal()
     reportTotalSecondsChanged = Signal()
+    exportDone = Signal(str, bool)  # (message, success)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -524,6 +529,137 @@ class TimeTrackerBackend(QObject):
     @Slot()
     def refreshReport(self):
         self._load_report()
+
+    @Slot(str, str)
+    def exportMonthlyReport(self, year_month, file_path):
+        """Export a monthly report to an Excel file.
+
+        Args:
+            year_month: "YYYY-MM" string
+            file_path:  Absolute path (may start with "file://")
+        """
+        try:
+            # Normalise file:// URI from QML FileDialog
+            if file_path.startswith("file://"):
+                file_path = file_path[7:]
+            if not file_path.endswith(".xlsx"):
+                file_path += ".xlsx"
+
+            year, month = int(year_month[:4]), int(year_month[5:7])
+            month_name = datetime(year, month, 1).strftime("%B %Y")
+            days_in_month = calendar.monthrange(year, month)[1]
+
+            # Collect (date, project, hours, description) rows
+            rows = []
+            total_hours = 0.0
+            for d in range(1, days_in_month + 1):
+                day_key = f"{year}-{month:02d}-{d:02d}"
+                log = self._data["dailyLogs"].get(day_key, {})
+                for proj, info in sorted(log.items()):
+                    secs = info.get("seconds", 0)
+                    # Round to nearest 10 minutes, express as decimal hours
+                    hours = round(secs / 600) * 10 / 60
+                    desc = info.get("description", "")
+                    date_label = datetime(year, month, d).strftime("%a, %b %d")
+                    rows.append((date_label, proj, hours, desc))
+                    total_hours += hours
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Report"
+
+            # ── Styles ───────────────────────────────────────────────
+            dark = "1F2937"
+            blue = "2563EB"
+            header_fill = PatternFill("solid", fgColor=dark)
+            alt_fill    = PatternFill("solid", fgColor="F9FAFB")
+            total_fill  = PatternFill("solid", fgColor="EEF4FF")
+
+            header_font = Font(bold=True, color="FFFFFF", size=11)
+            title_font  = Font(bold=True, color=dark, size=14)
+            total_font  = Font(bold=True, color=dark, size=11)
+            total_lbl_font = Font(bold=True, color=blue, size=11)
+
+            thin = Side(style="thin", color="E5E7EB")
+            cell_border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+            center = Alignment(horizontal="center", vertical="center")
+            left   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+            right  = Alignment(horizontal="right",  vertical="center")
+
+            # ── Title row ────────────────────────────────────────────
+            ws.merge_cells("A1:D1")
+            title_cell = ws["A1"]
+            title_cell.value = f"Monthly Report — {month_name}"
+            title_cell.font = title_font
+            title_cell.alignment = left
+            ws.row_dimensions[1].height = 28
+
+            ws.append([])  # blank row 2
+
+            # ── Header row ───────────────────────────────────────────
+            headers = ["Date", "Project", "Hours", "Description"]
+            ws.append(headers)
+            for col, _ in enumerate(headers, start=1):
+                cell = ws.cell(row=3, column=col)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = center
+                cell.border = cell_border
+            ws.row_dimensions[3].height = 22
+
+            # ── Data rows ────────────────────────────────────────────
+            for i, (date_lbl, proj, hrs, desc) in enumerate(rows):
+                row_num = i + 4
+                fill = alt_fill if i % 2 == 1 else None
+                values = [date_lbl, proj, hrs, desc]
+                aligns = [center, left, right, left]
+                ws.append(values)
+                for col, (val, aln) in enumerate(zip(values, aligns), start=1):
+                    cell = ws.cell(row=row_num, column=col)
+                    cell.alignment = aln
+                    cell.border = cell_border
+                    if fill:
+                        cell.fill = fill
+                    if col == 3:  # Hours column — format as number
+                        cell.number_format = "0.00"
+                ws.row_dimensions[row_num].height = 18
+
+            # ── Total row ────────────────────────────────────────────
+            if rows:
+                ws.append([])
+                total_row = len(rows) + 5
+                ws.cell(total_row, 1).value = "Total"
+                ws.cell(total_row, 1).font = total_lbl_font
+                ws.cell(total_row, 1).fill = total_fill
+                ws.cell(total_row, 1).alignment = center
+                ws.cell(total_row, 1).border = cell_border
+                ws.cell(total_row, 2).fill = total_fill
+                ws.cell(total_row, 2).border = cell_border
+                ws.cell(total_row, 3).value = total_hours
+                ws.cell(total_row, 3).font = total_font
+                ws.cell(total_row, 3).fill = total_fill
+                ws.cell(total_row, 3).alignment = right
+                ws.cell(total_row, 3).border = cell_border
+                ws.cell(total_row, 3).number_format = "0.00"
+                ws.cell(total_row, 4).fill = total_fill
+                ws.cell(total_row, 4).border = cell_border
+                ws.row_dimensions[total_row].height = 22
+
+            # ── Column widths ─────────────────────────────────────────
+            ws.column_dimensions["A"].width = 16
+            ws.column_dimensions["B"].width = 28
+            ws.column_dimensions["C"].width = 10
+            ws.column_dimensions["D"].width = 52
+
+            # Freeze panes below header
+            ws.freeze_panes = "A4"
+
+            wb.save(file_path)
+            self.exportDone.emit(f"Exported to {os.path.basename(file_path)}", True)
+
+        except Exception as e:
+            self.exportDone.emit(f"Export failed: {e}", False)
 
     # ── Internal ──
 
