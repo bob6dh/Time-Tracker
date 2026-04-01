@@ -198,22 +198,6 @@ Item {
                                 }
                             }
 
-                            // Remove button
-                            Label {
-                                text: "\u2715"
-                                font.pixelSize: 15
-                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
-                                Layout.rightMargin: 4
-
-                                MouseArea {
-                                    id: removeMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.removeProject(name)
-                                }
-                            }
-
                             // Active badge or Start button
                             Rectangle {
                                 visible: isActive
@@ -272,6 +256,22 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.startProject(name)
+                                }
+                            }
+
+                            // Remove button
+                            Label {
+                                text: "\u2715"
+                                font.pixelSize: 15
+                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
+                                Layout.leftMargin: 4
+
+                                MouseArea {
+                                    id: removeMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.removeProject(name)
                                 }
                             }
                         }
