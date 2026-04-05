@@ -26,9 +26,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: summaryRow.implicitHeight + 20
                     radius: 6
-                    color: "#ffffff"
-                    border.color: "#e5e7eb"
-                    border.width: 1
+                    color: "#1f2937"
 
                     Row {
                         id: summaryRow
@@ -38,7 +36,7 @@ Item {
 
                         Repeater {
                             model: [
-                                { label: "Today",     value: backend.todayTotal },
+                                { label: "Today",      value: backend.todayTotal },
                                 { label: "This Week",  value: backend.weekTotal  },
                                 { label: "This Month", value: backend.monthTotal  }
                             ]
@@ -54,7 +52,7 @@ Item {
                                     x: 0; y: 4
                                     width: 1
                                     height: parent.height - 8
-                                    color: "#e5e7eb"
+                                    color: "#374151"
                                 }
 
                                 ColumnLayout {
@@ -67,7 +65,7 @@ Item {
                                         text: modelData.value
                                         font.pixelSize: 18
                                         font.bold: true
-                                        color: "#1f2937"
+                                        color: "#f9fafb"
                                     }
                                     Label {
                                         Layout.alignment: Qt.AlignHCenter
