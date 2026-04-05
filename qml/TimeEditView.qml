@@ -10,8 +10,8 @@ Item {
     signal saved()
 
     // ── Grid constants ────────────────────────────────────────────
-    readonly property int startHour:    6          // 6 AM
-    readonly property int endHour:      23         // 11 PM
+    readonly property int startHour:    0          // 12 AM (midnight)
+    readonly property int endHour:      24         // 12 AM next day
     readonly property int hourHeight:   44         // px per hour
     readonly property real minuteH:     hourHeight / 60.0
     readonly property int snapMins:     15         // snap resolution
