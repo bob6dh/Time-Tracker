@@ -181,7 +181,15 @@ Item {
                                     width:  monthsCol.width / 7
                                     height: width
 
-                                    // Filled circle (has data) or outline ring (today, no data)
+                                    // Hover highlight (all clickable days)
+                                    Rectangle {
+                                        visible: !isEmpty && dayMa.containsMouse && !hasData && !isToday
+                                        anchors.centerIn: parent
+                                        width: 36; height: 36; radius: 18
+                                        color: "#f3f4f6"
+                                    }
+
+                                    // Filled circle (has data) or outline ring (today)
                                     Rectangle {
                                         visible: !isEmpty && (hasData || isToday)
                                         anchors.centerIn: parent
@@ -203,10 +211,12 @@ Item {
                                              : "#374151"
                                     }
 
-                                    // Click — only on days with data
+                                    // Click — any non-empty day
                                     MouseArea {
+                                        id: dayMa
                                         anchors.fill: parent
-                                        enabled: hasData
+                                        enabled: !isEmpty
+                                        hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: root.daySelected(modelData.key)
                                     }

@@ -127,7 +127,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // Back + title
+        // ── Back link ────────────────────────────────────────────
         Label {
             text: "\u2190 Back"
             font.pixelSize: 14
@@ -141,22 +141,81 @@ Item {
                 onClicked: root.back()
             }
         }
+
+        // ── Title row + Add Project button ───────────────────────
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.bottomMargin: 10
+            visible: !root.showNotes
+
+            Label {
+                text: dayKey !== "" ? backend.dayDetailTitle(dayKey) : ""
+                font.pixelSize: 20
+                font.bold: true
+                color: "#1f2937"
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                implicitWidth: addProjLbl.implicitWidth + 20
+                height: 30; radius: 4
+                color: addProjMa.containsMouse ? "#374151" : "#1f2937"
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 4
+                    Label {
+                        text: "+"
+                        font.pixelSize: 16; font.bold: true
+                        color: "#ffffff"
+                    }
+                    Label {
+                        id: addProjLbl
+                        text: "Add Project"
+                        font.pixelSize: 12
+                        color: "#ffffff"
+                    }
+                }
+                MouseArea {
+                    id: addProjMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        addProjectPopup.x = parent.x - addProjectPopup.width + parent.width
+                        addProjectPopup.y = parent.y + parent.height + 4
+                        addProjectPopup.open()
+                    }
+                }
+            }
+        }
+
+        // Title row when notes pane is open (no Add button)
         Label {
+            visible: root.showNotes
             text: dayKey !== "" ? backend.dayDetailTitle(dayKey) : ""
-            font.pixelSize: 20
-            font.bold: true
+            font.pixelSize: 20; font.bold: true
             color: "#1f2937"
             Layout.bottomMargin: 10
         }
 
-        // Empty state
-        Label {
-            visible: projectMeta.length === 0
-            text: "No time logged for this day"
-            font.pixelSize: 14
-            color: "#adb5bd"
+        // ── Empty state ───────────────────────────────────────────
+        ColumnLayout {
+            visible: projectMeta.length === 0 && !root.showNotes
             Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 20
+            Layout.topMargin: 40
+            spacing: 8
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: "No projects logged for this day"
+                font.pixelSize: 14
+                color: "#9ca3af"
+            }
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                text: "Click \u201c+ Add Project\u201d to log time for a project on this date"
+                font.pixelSize: 12
+                color: "#d1d5db"
+            }
         }
 
         // ── Daily Notes summary card (clickable, opens full editor) ──
@@ -790,6 +849,113 @@ Item {
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: saveAll() }
             }
+        }
+    }
+
+    // ── Add Project picker popup ──────────────────────────────────
+    Popup {
+        id: addProjectPopup
+        width: 230
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            radius: 8
+            color: "#ffffff"
+            border.color: "#e5e7eb"
+            border.width: 1
+        }
+
+        contentItem: Column {
+            width: addProjectPopup.width
+            spacing: 0
+
+            // Header
+            Item {
+                width: parent.width
+                height: 36
+                Rectangle { anchors.fill: parent; color: "#f9fafb";
+                            radius: 8
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width;
+                                        height: 8; color: "#f9fafb" } }
+                Label {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left; anchors.leftMargin: 12
+                    text: "Add project to this day"
+                    font.pixelSize: 11; font.bold: true
+                    color: "#6b7280"
+                }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#e5e7eb" }
+            }
+
+            // Project list
+            ListView {
+                id: projPickerList
+                width: parent.width
+                height: Math.min(contentHeight, 240)
+                clip: true
+                model: backend.projectModel
+
+                delegate: Item {
+                    required property string name
+                    required property int index
+                    width: projPickerList.width
+                    height: 40
+
+                    property bool alreadyAdded: {
+                        for (var i = 0; i < root.projectMeta.length; i++)
+                            if (root.projectMeta[i].name === name) return true
+                        return false
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: pickerItemMa.containsMouse && !alreadyAdded ? "#f0f4ff" : "transparent"
+                    }
+                    Label {
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left; anchors.leftMargin: 12
+                        text: name
+                        font.pixelSize: 13
+                        color: alreadyAdded ? "#d1d5db" : "#1f2937"
+                        width: parent.width - (alreadyAdded ? 70 : 20)
+                        elide: Text.ElideRight
+                    }
+                    Label {
+                        visible: alreadyAdded
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.right: parent.right; anchors.rightMargin: 12
+                        text: "added"
+                        font.pixelSize: 11
+                        color: "#d1d5db"
+                    }
+                    MouseArea {
+                        id: pickerItemMa
+                        anchors.fill: parent
+                        enabled: !alreadyAdded
+                        hoverEnabled: true
+                        cursorShape: alreadyAdded ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        onClicked: {
+                            backend.addProjectToDay(root.dayKey, name)
+                            root.loadData()
+                            addProjectPopup.close()
+                        }
+                    }
+                }
+
+                // Empty state
+                Label {
+                    visible: projPickerList.count === 0
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    topPadding: 12; bottomPadding: 12
+                    text: "No projects yet.\nCreate one in the Timer tab."
+                    font.pixelSize: 12
+                    color: "#9ca3af"
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Item { width: parent.width; height: 6 }  // bottom padding
         }
     }
 }

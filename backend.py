@@ -584,6 +584,25 @@ class TimeTrackerBackend(QObject):
     def getDatesWithData(self):
         return list(self._data["dailyLogs"].keys())
 
+    @Slot(str, str)
+    def addProjectToDay(self, day_key: str, project_name: str):
+        logs = self._data["dailyLogs"]
+        if day_key not in logs:
+            logs[day_key] = {}
+        if project_name not in logs[day_key]:
+            logs[day_key][project_name] = {
+                "seconds": 0,
+                "sessions": [],
+                "description": "",
+            }
+            save_data(self._data)
+            self._history_model.refresh()
+            self._day_detail_model.load_day(day_key)
+            if day_key == date.today().isoformat():
+                self._project_model.refresh()
+                self.hasTodayLogsChanged.emit()
+            self.summaryChanged.emit()
+
     @Slot(str, result="QVariantList")
     def getDayData(self, day_key: str):
         log = self._data["dailyLogs"].get(day_key, {})
