@@ -81,6 +81,7 @@ Item {
                 }
 
                 ProjectDialog { id: projectDialog }
+                ConfirmRemoveDialog { id: confirmRemoveDialog }
 
                 // Empty state
                 Label {
@@ -131,7 +132,10 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.removeProject(name)
+                                    onClicked: {
+                                    confirmRemoveDialog.projectName = name
+                                    confirmRemoveDialog.open()
+                                }
                                 }
                             }
 
