@@ -83,13 +83,20 @@ class ProjectListModel(QAbstractListModel):
             self.BillableRole: QByteArray(b"billable"),
         }
 
+    def _visible(self):
+        """Return only non-archived projects."""
+        return [
+            p for p in self._backend._data["projects"]
+            if not (isinstance(p, dict) and p.get("archived", False))
+        ]
+
     def rowCount(self, parent=QModelIndex()):
-        return len(self._backend._data["projects"])
+        return len(self._visible())
 
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        proj = self._backend._data["projects"][index.row()]
+        proj = self._visible()[index.row()]
         name = _proj_name(proj)
         if role == self.NameRole:
             return name
@@ -350,6 +357,7 @@ class TimeTrackerBackend(QObject):
     exportDone = Signal(str, bool)  # (message, success)
     summaryChanged = Signal()
     jsonTransferDone = Signal(str, bool)  # (message, success)
+    archivedProjectsChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -490,14 +498,40 @@ class TimeTrackerBackend(QObject):
         self._project_model.refresh()
 
     @Slot(str)
-    def removeProject(self, name):
+    def archiveProject(self, name: str):
         if self._active_project == name:
             self.stopTimer()
-        self._data["projects"] = [
-            p for p in self._data["projects"] if _proj_name(p) != name
-        ]
+        for p in self._data["projects"]:
+            if _proj_name(p) == name:
+                if isinstance(p, dict):
+                    p["archived"] = True
+                break
         save_data(self._data)
         self._project_model.refresh()
+        self.archivedProjectsChanged.emit()
+
+    @Slot(str)
+    def reinstateProject(self, name: str):
+        for p in self._data["projects"]:
+            if _proj_name(p) == name:
+                if isinstance(p, dict):
+                    p["archived"] = False
+                break
+        save_data(self._data)
+        self._project_model.refresh()
+        self.archivedProjectsChanged.emit()
+
+    @Slot(result="QVariantList")
+    def getArchivedProjects(self):
+        return [
+            {
+                "name": _proj_name(p),
+                "billingCode": p.get("billingCode", "") if isinstance(p, dict) else "",
+                "billable": p.get("billable", True) if isinstance(p, dict) else True,
+            }
+            for p in self._data["projects"]
+            if isinstance(p, dict) and p.get("archived", False)
+        ]
 
     @Slot(str)
     def startProject(self, name):

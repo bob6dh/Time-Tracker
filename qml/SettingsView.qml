@@ -6,6 +6,19 @@ import QtQuick.Dialogs
 Item {
     id: settingsRoot
 
+    property var archivedProjects: []
+
+    function refreshArchived() {
+        archivedProjects = backend.getArchivedProjects()
+    }
+
+    Component.onCompleted: refreshArchived()
+
+    Connections {
+        target: backend
+        function onArchivedProjectsChanged() { settingsRoot.refreshArchived() }
+    }
+
     // ── Toast notification ────────────────────────────────────────
     Rectangle {
         id: toast
@@ -289,6 +302,93 @@ Item {
                         onClicked: importDialog.open()
                     }
                 }
+
+                // ── Archived projects ─────────────────────────────
+                Label {
+                    text: "Archived Projects"
+                    font.pixelSize: 20
+                    font.bold: true
+                    color: "#1f2937"
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 8
+                }
+
+                // Empty archived state
+                Label {
+                    visible: settingsRoot.archivedProjects.length === 0
+                    text: "No archived projects"
+                    font.pixelSize: 13
+                    color: "#9ca3af"
+                    Layout.bottomMargin: 16
+                }
+
+                // Archived project rows
+                Repeater {
+                    model: settingsRoot.archivedProjects
+
+                    Rectangle {
+                        required property var modelData
+                        required property int index
+
+                        Layout.fillWidth: true
+                        height: archivedRow.implicitHeight + 16
+                        radius: 6
+                        color: "#f9fafb"
+                        border.color: "#e5e7eb"
+                        border.width: 1
+                        Layout.bottomMargin: 6
+
+                        RowLayout {
+                            id: archivedRow
+                            anchors { left: parent.left; right: parent.right
+                                      verticalCenter: parent.verticalCenter
+                                      margins: 12 }
+                            spacing: 8
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Label {
+                                    text: modelData.name
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    color: "#374151"
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                                Label {
+                                    visible: modelData.billingCode !== ""
+                                    text: modelData.billingCode
+                                    font.pixelSize: 11
+                                    color: "#9ca3af"
+                                }
+                            }
+
+                            Rectangle {
+                                implicitWidth: reinstateLbl.implicitWidth + 20
+                                height: 32; radius: 4
+                                color: reinstateMa.containsMouse ? "#374151" : "#1f2937"
+
+                                Label {
+                                    id: reinstateLbl
+                                    anchors.centerIn: parent
+                                    text: "Reinstate"
+                                    font.pixelSize: 12
+                                    color: "white"
+                                }
+                                MouseArea {
+                                    id: reinstateMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.reinstateProject(modelData.name)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item { height: 8 }
 
                 // Clear history
                 Rectangle {

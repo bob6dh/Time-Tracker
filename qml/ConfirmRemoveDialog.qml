@@ -23,7 +23,7 @@ Dialog {
         spacing: 0
 
         Label {
-            text: "Remove project?"
+            text: "Archive project?"
             font.pixelSize: 18
             font.bold: true
             color: "#1f2937"
@@ -41,7 +41,7 @@ Dialog {
         }
 
         Label {
-            text: "This will permanently remove the project and all its logged time. This cannot be undone."
+            text: "The project will be hidden from the timer. Its history is preserved and it can be reinstated from Settings."
             font.pixelSize: 13
             color: "#6b7280"
             wrapMode: Text.WordWrap
@@ -77,21 +77,21 @@ Dialog {
             Rectangle {
                 Layout.fillWidth: true
                 height: 40; radius: 4
-                color: removeMa.containsMouse ? "#b91c1c" : "#dc2626"
+                color: archiveMa.containsMouse ? "#374151" : "#1f2937"
 
                 Label {
                     anchors.centerIn: parent
-                    text: "Remove"
+                    text: "Archive"
                     font.pixelSize: 14
                     color: "white"
                 }
                 MouseArea {
-                    id: removeMa
+                    id: archiveMa
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        backend.removeProject(confirmRemoveDialog.projectName)
+                        backend.archiveProject(confirmRemoveDialog.projectName)
                         confirmRemoveDialog.close()
                     }
                 }
