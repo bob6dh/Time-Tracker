@@ -50,199 +50,196 @@ Item {
     // ── Export dialog ────────────────────────────────────────────────
     Dialog {
         id: exportDialog
-        title: "Export Monthly Report"
         anchors.centerIn: parent
         modal: true
-        width: 300
+        width: 340
+        padding: 0
+        closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
 
         property int selectedYear: new Date().getFullYear()
-        property int selectedMonth: new Date().getMonth() + 1  // 1-12
+        property int selectedMonth: new Date().getMonth() + 1
 
         function yearMonth() {
             return selectedYear + "-" + (selectedMonth < 10 ? "0" + selectedMonth : selectedMonth)
         }
 
-        ColumnLayout {
-            width: parent.width
-            spacing: 12
+        background: Rectangle {
+            radius: 10
+            color: "#ffffff"
+            border.color: "#e5e7eb"
+            border.width: 1
+        }
 
-            Label {
-                text: "Select the month to export:"
-                font.pixelSize: 14
-                color: "#1f2937"
-            }
+        contentItem: ColumnLayout {
+            spacing: 0
 
-            // Year row
-            RowLayout {
+            // Header
+            Rectangle {
                 Layout.fillWidth: true
-                spacing: 8
+                implicitHeight: exportHeaderCol.implicitHeight + 28
+                color: "#f8fafc"
+                radius: 10
 
-                Label {
-                    text: "Year"
-                    font.pixelSize: 13
-                    color: "#6b7280"
-                    Layout.preferredWidth: 54
+                // Square off bottom corners
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                    height: 10; color: "#f8fafc"
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 36
-                    radius: 6
-                    color: "#f9fafb"
-                    border.color: "#e5e7eb"
-                    border.width: 1
+                ColumnLayout {
+                    id: exportHeaderCol
+                    anchors { left: parent.left; right: parent.right; top: parent.top
+                              margins: 20; topMargin: 20 }
+                    spacing: 3
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 4
-                        spacing: 0
+                    Label {
+                        text: "Export to Excel"
+                        font.pixelSize: 18; font.bold: true; color: "#1f2937"
+                    }
+                    Label {
+                        text: "Choose a month to export as an .xlsx report."
+                        font.pixelSize: 13; color: "#6b7280"
+                    }
+                }
+            }
+
+            // Body
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.margins: 20
+                Layout.topMargin: 18
+                spacing: 14
+
+                // Year row
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+
+                    Label {
+                        text: "Year"; font.pixelSize: 13; color: "#6b7280"
+                        Layout.preferredWidth: 46
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true; height: 36; radius: 6
+                        color: "#ffffff"; border.color: "#e5e7eb"; border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.margins: 4; spacing: 0
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: exportDialog.selectedYear
+                                font.pixelSize: 14; font.bold: true; color: "#1f2937"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            ColumnLayout {
+                                spacing: 0
+                                Label {
+                                    text: "▲"; font.pixelSize: 9
+                                    color: yearUpMa.containsMouse ? "#2563eb" : "#9ca3af"
+                                    MouseArea {
+                                        id: yearUpMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: exportDialog.selectedYear++
+                                    }
+                                }
+                                Label {
+                                    text: "▼"; font.pixelSize: 9
+                                    color: yearDownMa.containsMouse ? "#2563eb" : "#9ca3af"
+                                    MouseArea {
+                                        id: yearDownMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (exportDialog.selectedYear > 2000) exportDialog.selectedYear--
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Month grid
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+
+                    Label {
+                        text: "Month"; font.pixelSize: 13; color: "#6b7280"
+                        Layout.preferredWidth: 46
+                    }
+
+                    Grid {
+                        columns: 4; spacing: 5
+
+                        Repeater {
+                            model: ["Jan","Feb","Mar","Apr","May","Jun",
+                                    "Jul","Aug","Sep","Oct","Nov","Dec"]
+
+                            Rectangle {
+                                required property string modelData
+                                required property int index
+                                property bool selected: exportDialog.selectedMonth === index + 1
+
+                                width: 52; height: 30; radius: 6
+                                color: selected ? "#dbeafe" : (monthMa.containsMouse ? "#f0f7ff" : "#ffffff")
+                                border.color: selected ? "#93c5fd" : "#e5e7eb"
+                                border.width: 1
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    text: modelData
+                                    font.pixelSize: 12; font.bold: selected
+                                    color: selected ? "#1d4ed8" : "#374151"
+                                }
+
+                                MouseArea {
+                                    id: monthMa; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: exportDialog.selectedMonth = index + 1
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Buttons
+                RowLayout {
+                    Layout.fillWidth: true; Layout.topMargin: 4; spacing: 8
+
+                    Item { Layout.fillWidth: true }
+
+                    Rectangle {
+                        implicitWidth: cancelLbl.implicitWidth + 28; height: 38; radius: 6
+                        color: cancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
+                        border.color: "#e5e7eb"; border.width: 1
 
                         Label {
-                            Layout.fillWidth: true
-                            text: exportDialog.selectedYear
-                            font.pixelSize: 14
-                            color: "#1f2937"
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
+                            id: cancelLbl; anchors.centerIn: parent
+                            text: "Cancel"; font.pixelSize: 13; color: "#6b7280"
                         }
-
-                        ColumnLayout {
-                            spacing: 0
-                            Label {
-                                text: "▲"
-                                font.pixelSize: 9
-                                color: yearUpMa.containsMouse ? "#1f2937" : "#9ca3af"
-                                MouseArea {
-                                    id: yearUpMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: exportDialog.selectedYear++
-                                }
-                            }
-                            Label {
-                                text: "▼"
-                                font.pixelSize: 9
-                                color: yearDownMa.containsMouse ? "#1f2937" : "#9ca3af"
-                                MouseArea {
-                                    id: yearDownMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: if (exportDialog.selectedYear > 2000) exportDialog.selectedYear--
-                                }
-                            }
+                        MouseArea {
+                            id: cancelMa; anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: exportDialog.close()
                         }
                     }
-                }
-            }
 
-            // Month grid
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
+                    Rectangle {
+                        implicitWidth: exportLbl.implicitWidth + 28; height: 38; radius: 6
+                        color: exportBtnMa.containsMouse ? "#1d4ed8" : "#2563eb"
 
-                Label {
-                    text: "Month"
-                    font.pixelSize: 13
-                    color: "#6b7280"
-                    Layout.preferredWidth: 54
-                }
-
-                Grid {
-                    columns: 4
-                    spacing: 4
-
-                    Repeater {
-                        model: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-
-                        Rectangle {
-                            required property string modelData
-                            required property int index
-                            property bool selected: exportDialog.selectedMonth === index + 1
-
-                            width: 52
-                            height: 28
-                            radius: 4
-                            color: selected ? "#1f2937" : (monthMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                            border.color: selected ? "transparent" : "#e5e7eb"
-                            border.width: 1
-
-                            Label {
-                                anchors.centerIn: parent
-                                text: modelData
-                                font.pixelSize: 12
-                                font.bold: selected
-                                color: selected ? "#ffffff" : "#374151"
-                            }
-
-                            MouseArea {
-                                id: monthMa
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: exportDialog.selectedMonth = index + 1
-                            }
+                        Label {
+                            id: exportLbl; anchors.centerIn: parent
+                            text: "Choose File…"; font.pixelSize: 13; font.bold: true; color: "white"
                         }
-                    }
-                }
-            }
-
-            // Action buttons
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 4
-                spacing: 8
-
-                Item { Layout.fillWidth: true }
-
-                Rectangle {
-                    width: cancelLbl.implicitWidth + 24
-                    height: 36
-                    radius: 6
-                    color: cancelMa.containsMouse ? "#f0f0f0" : "#ffffff"
-                    border.color: "#e5e7eb"
-                    border.width: 1
-
-                    Label {
-                        id: cancelLbl
-                        anchors.centerIn: parent
-                        text: "Cancel"
-                        font.pixelSize: 13
-                        color: "#6b7280"
-                    }
-                    MouseArea {
-                        id: cancelMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: exportDialog.close()
-                    }
-                }
-
-                Rectangle {
-                    width: exportLbl.implicitWidth + 24
-                    height: 36
-                    radius: 6
-                    color: exportBtnMa.containsMouse ? "#15803d" : "#16a34a"
-
-                    Label {
-                        id: exportLbl
-                        anchors.centerIn: parent
-                        text: "Choose File…"
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: "white"
-                    }
-                    MouseArea {
-                        id: exportBtnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            fileDialog.defaultSuffix = "xlsx"
-                            fileDialog.currentFile = "file:///report-" + exportDialog.yearMonth() + ".xlsx"
-                            fileDialog.open()
+                        MouseArea {
+                            id: exportBtnMa; anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                fileDialog.defaultSuffix = "xlsx"
+                                fileDialog.currentFile = "file:///report-" + exportDialog.yearMonth() + ".xlsx"
+                                fileDialog.open()
+                            }
                         }
                     }
                 }
