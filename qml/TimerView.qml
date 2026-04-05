@@ -80,41 +80,6 @@ Item {
                     }
                 }
 
-                // New Project button
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 4
-                    color: newProjMa.containsMouse ? "#374151" : "#1f2937"
-                    Layout.topMargin: 4
-                    Layout.bottomMargin: 4
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 6
-                        Label {
-                            text: "+"
-                            font.pixelSize: 18
-                            color: "white"
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Label {
-                            text: "New Project"
-                            font.pixelSize: 14
-                            color: "white"
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-
-                    MouseArea {
-                        id: newProjMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: projectDialog.open()
-                    }
-                }
-
                 ProjectDialog { id: projectDialog }
 
                 // Empty state
@@ -320,6 +285,40 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: backend.openEodDialog()
+                    }
+                }
+
+                // New Project button
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 40
+                    radius: 4
+                    color: newProjMa.containsMouse ? "#374151" : "#1f2937"
+                    Layout.topMargin: 6
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Label {
+                            text: "+"
+                            font.pixelSize: 18
+                            color: "white"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Label {
+                            text: "New Project"
+                            font.pixelSize: 14
+                            color: "white"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: newProjMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: projectDialog.open()
                     }
                 }
 
