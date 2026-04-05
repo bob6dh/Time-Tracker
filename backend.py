@@ -510,17 +510,23 @@ class TimeTrackerBackend(QObject):
             {
                 "project": proj,
                 "seconds": info["seconds"],
+                "sessions": info.get("sessions", []),
                 "description": info.get("description", ""),
             }
             for proj, info in log.items()
         ]
 
-    @Slot(str, str, int)
-    def updateDayProjectTime(self, day_key: str, project: str, seconds: int):
+    @Slot(str, str, str)
+    def saveDaySessions(self, day_key: str, project: str, sessions_json: str):
+        import json as _json
+        sessions = _json.loads(sessions_json)
         logs = self._data["dailyLogs"]
         if day_key not in logs or project not in logs[day_key]:
             return
-        logs[day_key][project]["seconds"] = seconds
+        logs[day_key][project]["sessions"] = sessions
+        logs[day_key][project]["seconds"] = sum(
+            (s["end"] - s["start"]) * 60 for s in sessions
+        )
         save_data(self._data)
         self._history_model.refresh()
         self._day_detail_model.load_day(day_key)
@@ -692,15 +698,31 @@ class TimeTrackerBackend(QObject):
     def _log_time(self, secs):
         if not self._active_project or secs <= 0:
             return
-        today = date.today().isoformat()
-        if today not in self._data["dailyLogs"]:
-            self._data["dailyLogs"][today] = {}
-        if self._active_project not in self._data["dailyLogs"][today]:
-            self._data["dailyLogs"][today][self._active_project] = {
+        session_start_ts = self._session_start if self._session_start else (time.time() - secs)
+        start_dt = datetime.fromtimestamp(session_start_ts)
+        end_dt = datetime.fromtimestamp(session_start_ts + secs)
+
+        start_min = start_dt.hour * 60 + start_dt.minute
+        # Clamp to same calendar day
+        if end_dt.date() != start_dt.date():
+            end_min = 23 * 60 + 59
+        else:
+            end_min = end_dt.hour * 60 + end_dt.minute
+
+        day_key = start_dt.date().isoformat()
+        if day_key not in self._data["dailyLogs"]:
+            self._data["dailyLogs"][day_key] = {}
+        if self._active_project not in self._data["dailyLogs"][day_key]:
+            self._data["dailyLogs"][day_key][self._active_project] = {
                 "seconds": 0,
+                "sessions": [],
                 "description": "",
             }
-        self._data["dailyLogs"][today][self._active_project]["seconds"] += secs
+        entry = self._data["dailyLogs"][day_key][self._active_project]
+        if "sessions" not in entry:
+            entry["sessions"] = []
+        entry["sessions"].append({"start": start_min, "end": end_min})
+        entry["seconds"] = sum((s["end"] - s["start"]) * 60 for s in entry["sessions"])
         save_data(self._data)
 
     def _get_today_total(self, proj):
