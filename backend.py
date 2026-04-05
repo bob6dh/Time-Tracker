@@ -16,11 +16,23 @@ from PySide6.QtCore import (
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tracker_data.json")
 
 
+def _proj_name(p):
+    """Return the name string from either a legacy string project or a dict project."""
+    return p["name"] if isinstance(p, dict) else p
+
+
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Migrate legacy string-format projects to dict format
+            data["projects"] = [
+                p if isinstance(p, dict)
+                else {"name": p, "billingCode": "", "billable": True}
+                for p in data.get("projects", [])
+            ]
+            return data
         except Exception:
             pass
     return {"projects": [], "checkInInterval": 30, "dailyLogs": {}}
@@ -55,6 +67,8 @@ class ProjectListModel(QAbstractListModel):
     NameRole = Qt.UserRole + 1
     TodayTimeRole = Qt.UserRole + 2
     IsActiveRole = Qt.UserRole + 3
+    BillingCodeRole = Qt.UserRole + 4
+    BillableRole = Qt.UserRole + 5
 
     def __init__(self, backend, parent=None):
         super().__init__(parent)
@@ -65,6 +79,8 @@ class ProjectListModel(QAbstractListModel):
             self.NameRole: QByteArray(b"name"),
             self.TodayTimeRole: QByteArray(b"todayTime"),
             self.IsActiveRole: QByteArray(b"isActive"),
+            self.BillingCodeRole: QByteArray(b"billingCode"),
+            self.BillableRole: QByteArray(b"billable"),
         }
 
     def rowCount(self, parent=QModelIndex()):
@@ -74,12 +90,17 @@ class ProjectListModel(QAbstractListModel):
         if not index.isValid():
             return None
         proj = self._backend._data["projects"][index.row()]
+        name = _proj_name(proj)
         if role == self.NameRole:
-            return proj
+            return name
         if role == self.TodayTimeRole:
-            return fmt_time(self._backend._get_today_total(proj))
+            return fmt_time(self._backend._get_today_total(name))
         if role == self.IsActiveRole:
-            return self._backend._active_project == proj
+            return self._backend._active_project == name
+        if role == self.BillingCodeRole:
+            return proj.get("billingCode", "") if isinstance(proj, dict) else ""
+        if role == self.BillableRole:
+            return proj.get("billable", True) if isinstance(proj, dict) else True
         return None
 
     def refresh(self):
@@ -406,12 +427,19 @@ class TimeTrackerBackend(QObject):
 
     # ── Slots ──
 
-    @Slot(str)
-    def addProject(self, name):
+    @Slot(str, str, bool)
+    def addProject(self, name: str, billing_code: str, billable: bool):
         name = name.strip()
-        if not name or name in self._data["projects"]:
+        if not name:
             return
-        self._data["projects"].append(name)
+        existing = [_proj_name(p) for p in self._data["projects"]]
+        if name in existing:
+            return
+        self._data["projects"].append({
+            "name": name,
+            "billingCode": billing_code.strip(),
+            "billable": billable,
+        })
         save_data(self._data)
         self._project_model.refresh()
 
@@ -419,7 +447,9 @@ class TimeTrackerBackend(QObject):
     def removeProject(self, name):
         if self._active_project == name:
             self.stopTimer()
-        self._data["projects"] = [p for p in self._data["projects"] if p != name]
+        self._data["projects"] = [
+            p for p in self._data["projects"] if _proj_name(p) != name
+        ]
         save_data(self._data)
         self._project_model.refresh()
 
