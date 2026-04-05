@@ -227,6 +227,7 @@ class EodModel(QAbstractListModel):
             return item["description"]
         return None
 
+    @Slot()
     def load(self):
         self.beginResetModel()
         today = date.today().isoformat()

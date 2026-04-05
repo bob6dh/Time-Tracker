@@ -170,69 +170,71 @@ Item {
                         required property int index
 
                         Layout.fillWidth: true
-                        height: projRow.implicitHeight + 24
+                        height: 62
                         radius: 6
                         color: isActive ? "#eef4ff" : "#ffffff"
                         border.color: isActive ? "#93c5fd" : "#e5e7eb"
                         border.width: 1
 
-                        RowLayout {
+                        Item {
                             id: projRow
                             anchors.fill: parent
                             anchors.margins: 14
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
+                            // Remove button — anchored to far right
+                            Label {
+                                id: removeBtn
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "\u2715"
+                                font.pixelSize: 15
+                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
 
-                                Label {
-                                    text: name
-                                    font.pixelSize: 15
-                                    font.bold: true
-                                    color: isActive ? "#2563eb" : "#1f2937"
-                                }
-                                Label {
-                                    text: "Today: " + todayTime
-                                    font.pixelSize: 12
-                                    color: "#6b7280"
-                                }
-                            }
-
-                            // Active badge or Start button
-                            Rectangle {
-                                visible: isActive
-                                width: activeLbl.implicitWidth + 20
-                                height: 32
-                                radius: 16
-                                color: "#dbeafe"
-                                border.color: "#93c5fd"
-                                border.width: 1
-
-                                Label {
-                                    id: activeLbl
-                                    anchors.centerIn: parent
-                                    text: "● Active"
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                    color: "#2563eb"
+                                MouseArea {
+                                    id: removeMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.removeProject(name)
                                 }
                             }
 
+                            // Active badge or Start button — anchored just left of remove button
                             Rectangle {
-                                visible: !isActive
-                                width: startRow.implicitWidth + 24
+                                id: actionBtn
+                                anchors.right: removeBtn.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: isActive ? (activeLbl.implicitWidth + 20) : (startRow.implicitWidth + 24)
                                 height: 34
                                 radius: 17
+                                color: isActive ? "#dbeafe" : "transparent"
+                                border.color: isActive ? "#93c5fd" : "transparent"
+                                border.width: isActive ? 1 : 0
 
-                                gradient: Gradient {
+                                gradient: isActive ? null : startGradient
+
+                                Gradient {
+                                    id: startGradient
                                     orientation: Gradient.Horizontal
                                     GradientStop { position: 0.0; color: startMa.containsMouse ? "#15803d" : "#16a34a" }
                                     GradientStop { position: 1.0; color: startMa.containsMouse ? "#166534" : "#15803d" }
                                 }
 
+                                Label {
+                                    id: activeLbl
+                                    anchors.centerIn: parent
+                                    visible: isActive
+                                    text: "● Active"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: "#2563eb"
+                                }
+
                                 Row {
                                     id: startRow
                                     anchors.centerIn: parent
+                                    visible: !isActive
                                     spacing: 5
 
                                     Label {
@@ -253,25 +255,33 @@ Item {
                                 MouseArea {
                                     id: startMa
                                     anchors.fill: parent
+                                    enabled: !isActive
                                     hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.startProject(name)
+                                    cursorShape: isActive ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: if (!isActive) backend.startProject(name)
                                 }
                             }
 
-                            // Remove button
-                            Label {
-                                text: "\u2715"
-                                font.pixelSize: 15
-                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
-                                Layout.leftMargin: 4
+                            // Project info — anchored left, right edge stops at action button
+                            ColumnLayout {
+                                anchors.left: parent.left
+                                anchors.right: actionBtn.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
 
-                                MouseArea {
-                                    id: removeMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.removeProject(name)
+                                Label {
+                                    text: name
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                    color: isActive ? "#2563eb" : "#1f2937"
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                                Label {
+                                    text: "Today: " + todayTime
+                                    font.pixelSize: 12
+                                    color: "#6b7280"
                                 }
                             }
                         }
