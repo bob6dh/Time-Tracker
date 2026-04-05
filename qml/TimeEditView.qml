@@ -41,9 +41,12 @@ Item {
         "#e67e22", "#1abc9c", "#e74c3c", "#f39c12"
     ]
 
+    // Notes pane toggle
+    property bool showNotes: false
+
     // ── Lifecycle ────────────────────────────────────────────────
     Component.onCompleted: { if (dayKey !== "") loadData() }
-    onDayKeyChanged:        { if (dayKey !== "") loadData() }
+    onDayKeyChanged:        { if (dayKey !== "") { showNotes = false; loadData() } }
     onWidthChanged:         recalcColWidth()
 
     // ── Helper functions ─────────────────────────────────────────
@@ -156,27 +159,35 @@ Item {
             Layout.topMargin: 20
         }
 
-        // ── Daily Notes ───────────────────────────────────────────
+        // ── Daily Notes summary card (clickable, opens full editor) ──
         Rectangle {
-            visible: projectMeta.length > 0
+            visible: projectMeta.length > 0 && !root.showNotes
             Layout.fillWidth: true
-            Layout.maximumHeight: 200
             radius: 6
-            color: "#ffffff"
-            border.color: "#e5e7eb"
+            color: notesSummaryMa.containsMouse ? "#f0f4ff" : "#ffffff"
+            border.color: notesSummaryMa.containsMouse ? "#93c5fd" : "#e5e7eb"
             border.width: 1
             Layout.bottomMargin: 8
-            implicitHeight: notesCol.implicitHeight + 20
+            implicitHeight: notesSummaryCol.implicitHeight + 20
+
+            Behavior on color { ColorAnimation { duration: 80 } }
+
+            MouseArea {
+                id: notesSummaryMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.showNotes = true
+            }
 
             ColumnLayout {
-                id: notesCol
+                id: notesSummaryCol
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
-                spacing: 8
+                spacing: 6
 
-                // Section header
+                // Header row
                 RowLayout {
                     Layout.fillWidth: true
-
                     Label {
                         text: "Daily Notes"
                         font.pixelSize: 12
@@ -185,76 +196,208 @@ Item {
                         Layout.fillWidth: true
                     }
                     Label {
-                        text: "saved with time"
-                        font.pixelSize: 10
-                        color: "#d1d5db"
+                        text: "Edit \u2192"
+                        font.pixelSize: 11
+                        color: "#93c5fd"
                     }
                 }
 
-                // One row per project
+                // One preview row per project
                 Repeater {
                     model: projectMeta.length
-
                     RowLayout {
                         required property int index
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: 6
 
-                        // Colour swatch + project name
                         Rectangle {
-                            width: 3; height: noteField.implicitHeight + 2
-                            radius: 2
+                            width: 3; height: 14; radius: 2
                             color: projectMeta[index] ? projectMeta[index].color : "#ccc"
                         }
                         Label {
                             text: projectMeta[index] ? projectMeta[index].name : ""
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             font.bold: true
                             color: "#374151"
                             Layout.preferredWidth: 80
                             elide: Text.ElideRight
                         }
-
-                        // Editable description
-                        Rectangle {
+                        Label {
+                            property string note: (projectMeta[index] && descriptions[projectMeta[index].name])
+                                                  ? descriptions[projectMeta[index].name] : ""
+                            text: note.length > 0 ? (note.length > 60 ? note.substring(0, 60) + "…" : note)
+                                                  : "No note"
+                            font.pixelSize: 11
+                            font.italic: note.length === 0
+                            color: note.length > 0 ? "#4b5563" : "#d1d5db"
                             Layout.fillWidth: true
-                            height: noteField.implicitHeight + 10
-                            radius: 4
-                            color: noteField.activeFocus ? "#f0f4ff" : "#f9fafb"
-                            border.color: noteField.activeFocus ? "#93c5fd" : "#e5e7eb"
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+
+                Item { height: 2 }
+            }
+        }
+
+        // ── Full-screen notes editor ──────────────────────────────
+        ColumnLayout {
+            visible: root.showNotes && projectMeta.length > 0
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 6
+
+            // Header
+            RowLayout {
+                Layout.fillWidth: true
+
+                Label {
+                    text: "\u2190 Back to calendar"
+                    font.pixelSize: 13
+                    color: notesBackMa.containsMouse ? "#1f2937" : "#6b7280"
+                    MouseArea {
+                        id: notesBackMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.showNotes = false
+                    }
+                }
+                Item { Layout.fillWidth: true }
+                Label {
+                    text: "Daily Notes"
+                    font.pixelSize: 14
+                    font.bold: true
+                    color: "#1f2937"
+                }
+                Item { Layout.fillWidth: true }
+                // Spacer to balance the back label
+                Item { width: 100 }
+            }
+
+            // Scrollable per-project note cards
+            Flickable {
+                id: notesFlick
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentHeight: notesEditorCol.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
+
+                ColumnLayout {
+                    id: notesEditorCol
+                    width: notesFlick.width
+                    spacing: 10
+
+                    Repeater {
+                        model: projectMeta.length
+
+                        Rectangle {
+                            required property int index
+                            Layout.fillWidth: true
+                            radius: 6
+                            color: "#ffffff"
+                            border.color: "#e5e7eb"
                             border.width: 1
+                            implicitHeight: noteEditorInner.implicitHeight + 20
 
-                            TextInput {
-                                id: noteField
-                                anchors { fill: parent; margins: 5 }
-                                verticalAlignment: TextInput.AlignVCenter
-                                font.pixelSize: 12
-                                color: "#1f2937"
-                                clip: true
-                                text: (projectMeta[index] && descriptions[projectMeta[index].name])
-                                      ? descriptions[projectMeta[index].name] : ""
+                            ColumnLayout {
+                                id: noteEditorInner
+                                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                                spacing: 6
 
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "Add a note..."
-                                    color: "#d1d5db"
-                                    font.pixelSize: 12
-                                    visible: !noteField.text && !noteField.activeFocus
+                                // Project name with color swatch
+                                RowLayout {
+                                    spacing: 8
+                                    Rectangle {
+                                        width: 4; height: 16; radius: 2
+                                        color: projectMeta[index] ? projectMeta[index].color : "#ccc"
+                                    }
+                                    Label {
+                                        text: projectMeta[index] ? projectMeta[index].name : ""
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        color: "#1f2937"
+                                    }
                                 }
 
-                                onTextChanged: {
-                                    if (projectMeta[index]) {
-                                        var d = descriptions
-                                        d[projectMeta[index].name] = text
-                                        descriptions = d
+                                // Multiline text area
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 90
+                                    radius: 4
+                                    color: bigNoteArea.activeFocus ? "#f0f4ff" : "#f9fafb"
+                                    border.color: bigNoteArea.activeFocus ? "#93c5fd" : "#e5e7eb"
+                                    border.width: 1
+
+                                    Flickable {
+                                        id: bigNoteFlick
+                                        anchors { fill: parent; margins: 8 }
+                                        contentHeight: bigNoteArea.implicitHeight
+                                        clip: true
+                                        boundsBehavior: Flickable.StopAtBounds
+                                        flickableDirection: Flickable.VerticalFlick
+
+                                        TextEdit {
+                                            id: bigNoteArea
+                                            width: bigNoteFlick.width
+                                            wrapMode: TextEdit.Wrap
+                                            font.pixelSize: 13
+                                            color: "#1f2937"
+                                            selectByMouse: true
+                                            text: (projectMeta[index] && descriptions[projectMeta[index].name])
+                                                  ? descriptions[projectMeta[index].name] : ""
+
+                                            Text {
+                                                text: "Add a note about what you worked on..."
+                                                color: "#d1d5db"
+                                                font.pixelSize: 13
+                                                visible: !bigNoteArea.text && !bigNoteArea.activeFocus
+                                            }
+
+                                            onTextChanged: {
+                                                if (projectMeta[index]) {
+                                                    var d = descriptions
+                                                    d[projectMeta[index].name] = text
+                                                    descriptions = d
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                Item { height: 2 }  // bottom padding
+                    Item { height: 4 }  // bottom padding
+                }
+            }
+
+            // Done button
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Item { Layout.fillWidth: true }
+                Rectangle {
+                    width: doneNotesLbl.implicitWidth + 32; height: 34
+                    radius: 4
+                    color: doneNotesMa.containsMouse ? "#374151" : "#1f2937"
+                    Label {
+                        id: doneNotesLbl
+                        anchors.centerIn: parent
+                        text: "Done"
+                        font.pixelSize: 13
+                        color: "white"
+                    }
+                    MouseArea {
+                        id: doneNotesMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.showNotes = false
+                    }
+                }
             }
         }
 
@@ -263,7 +406,7 @@ Item {
             id: calFlick
             Layout.fillWidth:  true
             Layout.fillHeight: true
-            visible: projectMeta.length > 0
+            visible: projectMeta.length > 0 && !root.showNotes
             contentWidth:  timeLabelW + projectMeta.length * colWidth
             contentHeight: headerH + gridH
             clip: true
@@ -609,7 +752,7 @@ Item {
 
         // Hint
         Label {
-            visible: projectMeta.length > 0
+            visible: projectMeta.length > 0 && !root.showNotes
             text: "Drag in column to add time  \u2022  hover block and click \u00d7 to delete  \u2022  drag block edges to resize"
             font.pixelSize: 10
             color: "#9ca3af"
@@ -619,7 +762,7 @@ Item {
 
         // ── Save / Cancel buttons ─────────────────────────────────
         RowLayout {
-            visible: projectMeta.length > 0
+            visible: projectMeta.length > 0 && !root.showNotes
             Layout.topMargin: 6
             spacing: 8
 
