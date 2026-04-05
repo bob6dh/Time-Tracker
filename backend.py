@@ -1031,3 +1031,78 @@ class TimeTrackerBackend(QObject):
         self.reportLabelChanged.emit()
         self.reportTotalChanged.emit()
         self.reportTotalSecondsChanged.emit()
+
+    @Slot(str, str, int, str, result='QVariantMap')
+    def calculateUtilization(self, start_date: str, end_date: str, hours_per_day: int, holidays_json: str):
+        """Calculate utilization rates for a date range.
+
+        Returns a dict with:
+          billableHours, totalHours, workingDays, holidayWorkingDays,
+          standardHours, adjustedHours, rate1, rate2, rate3
+        where rate values are percentages (0-100) or -1 when denominator is 0.
+        """
+        import json as _json
+        try:
+            holidays = set(_json.loads(holidays_json))
+        except Exception:
+            holidays = set()
+
+        try:
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+        except Exception:
+            return {"error": "Invalid date format. Use YYYY-MM-DD."}
+
+        if end < start:
+            return {"error": "End date must be on or after start date."}
+
+        # Build set of billable project names (includes archived)
+        billable_projects = set()
+        for p in self._data["projects"]:
+            if isinstance(p, dict):
+                if p.get("billable", True):
+                    billable_projects.add(p["name"])
+            else:
+                billable_projects.add(p)
+
+        # Sum billable and total seconds across the date range
+        billable_secs = 0
+        total_secs = 0
+        working_days = 0
+        holiday_working_days = 0
+        cur = start
+        while cur <= end:
+            dk = cur.isoformat()
+            log = self._data["dailyLogs"].get(dk, {})
+            for proj, info in log.items():
+                secs = info.get("seconds", 0)
+                total_secs += secs
+                if proj in billable_projects:
+                    billable_secs += secs
+            if cur.weekday() < 5:  # Monday–Friday
+                working_days += 1
+                if dk in holidays:
+                    holiday_working_days += 1
+            cur += timedelta(days=1)
+
+        billable_hours = billable_secs / 3600
+        total_hours = total_secs / 3600
+        standard_hours = working_days * hours_per_day
+        adjusted_hours = (working_days - holiday_working_days) * hours_per_day
+
+        def pct(num, den):
+            if den <= 0:
+                return -1.0
+            return round(num / den * 100, 1)
+
+        return {
+            "billableHours": round(billable_hours, 2),
+            "totalHours": round(total_hours, 2),
+            "workingDays": working_days,
+            "holidayWorkingDays": holiday_working_days,
+            "standardHours": standard_hours,
+            "adjustedHours": adjusted_hours,
+            "rate1": pct(billable_hours, total_hours),
+            "rate2": pct(billable_hours, standard_hours),
+            "rate3": pct(billable_hours, adjusted_hours),
+        }

@@ -6,6 +6,8 @@ import QtQuick.Dialogs
 Item {
     id: reportView
 
+    property bool showUtilization: false
+
     Component.onCompleted: backend.refreshReport()
 
     // ── Toast notification ───────────────────────────────────────────
@@ -270,10 +272,18 @@ Item {
         }
     }
 
+    // ── Utilization sub-page ─────────────────────────────────────────
+    UtilizationView {
+        anchors.fill: parent
+        visible: reportView.showUtilization
+        onBack: reportView.showUtilization = false
+    }
+
     // ── Main layout ──────────────────────────────────────────────────
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
+        visible: !reportView.showUtilization
 
         Flickable {
             Layout.fillWidth: true
@@ -524,6 +534,41 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: exportDialog.open()
+                    }
+                }
+
+                // Utilization Rate button
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 40
+                    radius: 6
+                    Layout.topMargin: 4
+                    color: utilMa.containsMouse ? "#374151" : "#1f2937"
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 6
+
+                        Label {
+                            text: "%"
+                            font.pixelSize: 16
+                            font.bold: true
+                            color: "white"
+                        }
+                        Label {
+                            text: "Utilization Rate"
+                            font.pixelSize: 14
+                            font.bold: true
+                            color: "white"
+                        }
+                    }
+
+                    MouseArea {
+                        id: utilMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: reportView.showUtilization = true
                     }
                 }
 
