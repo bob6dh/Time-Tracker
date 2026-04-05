@@ -1032,21 +1032,18 @@ class TimeTrackerBackend(QObject):
         self.reportTotalChanged.emit()
         self.reportTotalSecondsChanged.emit()
 
-    @Slot(str, str, int, str, result='QVariantMap')
-    def calculateUtilization(self, start_date: str, end_date: str, hours_per_day: int, holidays_json: str):
+    @Slot(str, str, float, result='QVariantMap')
+    def calculateUtilization(self, start_date: str, end_date: str, pto_hours: float):
         """Calculate utilization rates for a date range.
 
-        Returns a dict with:
-          billableHours, totalHours, workingDays, holidayWorkingDays,
-          standardHours, adjustedHours, rate1, rate2, rate3
-        where rate values are percentages (0-100) or -1 when denominator is 0.
-        """
-        import json as _json
-        try:
-            holidays = set(_json.loads(holidays_json))
-        except Exception:
-            holidays = set()
+        Standard working hours are fixed at 8 h/day (Mon–Fri).
+        pto_hours is the total PTO/holiday hours to deduct from standard hours.
 
+        Returns a dict with:
+          billableHours, totalHours, workingDays, ptoHours,
+          standardHours, adjustedHours, rate1, rate2, rate3
+        where rate values are percentages (0–100) or -1 when denominator is 0.
+        """
         try:
             start = date.fromisoformat(start_date)
             end = date.fromisoformat(end_date)
@@ -1065,11 +1062,10 @@ class TimeTrackerBackend(QObject):
             else:
                 billable_projects.add(p)
 
-        # Sum billable and total seconds across the date range
+        # Sum billable and total seconds; count Mon–Fri working days
         billable_secs = 0
         total_secs = 0
         working_days = 0
-        holiday_working_days = 0
         cur = start
         while cur <= end:
             dk = cur.isoformat()
@@ -1081,14 +1077,12 @@ class TimeTrackerBackend(QObject):
                     billable_secs += secs
             if cur.weekday() < 5:  # Monday–Friday
                 working_days += 1
-                if dk in holidays:
-                    holiday_working_days += 1
             cur += timedelta(days=1)
 
         billable_hours = billable_secs / 3600
         total_hours = total_secs / 3600
-        standard_hours = working_days * hours_per_day
-        adjusted_hours = (working_days - holiday_working_days) * hours_per_day
+        standard_hours = working_days * 8
+        adjusted_hours = standard_hours - pto_hours
 
         def pct(num, den):
             if den <= 0:
@@ -1099,7 +1093,7 @@ class TimeTrackerBackend(QObject):
             "billableHours": round(billable_hours, 2),
             "totalHours": round(total_hours, 2),
             "workingDays": working_days,
-            "holidayWorkingDays": holiday_working_days,
+            "ptoHours": pto_hours,
             "standardHours": standard_hours,
             "adjustedHours": adjusted_hours,
             "rate1": pct(billable_hours, total_hours),
