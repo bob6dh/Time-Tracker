@@ -84,7 +84,10 @@ class ProjectListModel(QAbstractListModel):
         }
 
     def _visible(self):
-        """Return only non-archived projects."""
+        """Return only non-archived projects for the timer UI.
+        Archived projects are intentionally NOT filtered from dailyLogs,
+        so their data remains fully visible in history, reports, and exports.
+        """
         return [
             p for p in self._backend._data["projects"]
             if not (isinstance(p, dict) and p.get("archived", False))
