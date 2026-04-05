@@ -207,7 +207,10 @@ Item {
                                 border.color: isActive ? "#93c5fd" : "transparent"
                                 border.width: isActive ? 1 : 0
 
-                                gradient: isActive ? null : Gradient {
+                                gradient: isActive ? null : startGradient
+
+                                Gradient {
+                                    id: startGradient
                                     orientation: Gradient.Horizontal
                                     GradientStop { position: 0.0; color: startMa.containsMouse ? "#15803d" : "#16a34a" }
                                     GradientStop { position: 1.0; color: startMa.containsMouse ? "#166534" : "#15803d" }
