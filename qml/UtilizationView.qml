@@ -10,6 +10,7 @@ Item {
     // ── State ─────────────────────────────────────────────────────
     property var utilResult: null
     property real ptoHours: 0
+    property real holidayHours: 0
 
     // Default: start = first day of current month, end = today
     property int startYear:  new Date().getFullYear()
@@ -31,7 +32,7 @@ Item {
     function calculate() {
         errorLabel.text = ""
         utilResult = null
-        var r = backend.calculateUtilization(startDateStr(), endDateStr(), ptoHours)
+        var r = backend.calculateUtilization(startDateStr(), endDateStr(), ptoHours, holidayHours)
         if (r && r.error) { errorLabel.text = r.error } else { utilResult = r }
     }
 
@@ -275,54 +276,78 @@ Item {
                 }
             }
 
-            // ── PTO / Holiday Hours ─────────────────────────────────
+            // ── Deductions ──────────────────────────────────────────
             Label {
-                text: "PTO / Holiday Hours"
+                text: "Deductions (Optional)"
                 font.pixelSize: 15; font.bold: true; color: "#374151"
                 Layout.bottomMargin: 4
             }
             Label {
-                text: "Total hours to deduct from standard hours (optional)."
+                text: "Hours to deduct from standard hours when calculating the adjusted rate."
                 font.pixelSize: 12; color: "#9ca3af"
                 Layout.bottomMargin: 10
             }
 
             RowLayout {
-                spacing: 8; Layout.bottomMargin: 20
+                Layout.fillWidth: true; spacing: 12; Layout.bottomMargin: 20
 
-                Label { text: "Hours to deduct:"; font.pixelSize: 13; color: "#6b7280" }
+                // PTO Hours
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 4
 
-                Rectangle {
-                    height: 36; radius: 4
-                    color: "#f9fafb"; border.color: "#e5e7eb"; border.width: 1
-                    implicitWidth: ptoRow.implicitWidth + 8
+                    Label { text: "PTO Hours"; font.pixelSize: 13; color: "#6b7280" }
+                    Rectangle {
+                        Layout.fillWidth: true; height: 36; radius: 4
+                        color: "#f9fafb"
+                        border.color: ptoInput.activeFocus ? "#93c5fd" : "#e5e7eb"
+                        border.width: 1
 
-                    RowLayout {
-                        id: ptoRow; anchors.centerIn: parent; spacing: 4
-
-                        Rectangle {
-                            width: 24; height: 24; radius: 4
-                            color: ptoMinusMa.containsMouse ? "#e5e7eb" : "transparent"
-                            Label { anchors.centerIn: parent; text: "−"; font.pixelSize: 16; color: "#374151" }
-                            MouseArea {
-                                id: ptoMinusMa; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: if (utilRoot.ptoHours > 0) utilRoot.ptoHours = Math.max(0, utilRoot.ptoHours - 1)
+                        TextInput {
+                            id: ptoInput
+                            anchors { fill: parent; margins: 10 }
+                            font.pixelSize: 14; color: "#1f2937"
+                            verticalAlignment: TextInput.AlignVCenter
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            text: utilRoot.ptoHours > 0 ? utilRoot.ptoHours : ""
+                            onTextChanged: {
+                                var v = parseFloat(text)
+                                utilRoot.ptoHours = (text === "" || isNaN(v) || v < 0) ? 0 : v
+                            }
+                            Text {
+                                text: "0"; color: "#d1d5db"; font.pixelSize: 14
+                                visible: !ptoInput.text
+                                anchors.verticalCenter: parent.verticalCenter
                             }
                         }
-                        Label {
-                            text: utilRoot.ptoHours % 1 === 0 ? utilRoot.ptoHours + "h" : utilRoot.ptoHours + "h"
-                            font.pixelSize: 15; font.bold: true; color: "#1f2937"
-                            Layout.preferredWidth: 40; horizontalAlignment: Text.AlignHCenter
-                        }
-                        Rectangle {
-                            width: 24; height: 24; radius: 4
-                            color: ptoPlusMa.containsMouse ? "#e5e7eb" : "transparent"
-                            Label { anchors.centerIn: parent; text: "+"; font.pixelSize: 16; color: "#374151" }
-                            MouseArea {
-                                id: ptoPlusMa; anchors.fill: parent; hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: utilRoot.ptoHours++
+                    }
+                }
+
+                // Holiday Hours
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 4
+
+                    Label { text: "Holiday Hours"; font.pixelSize: 13; color: "#6b7280" }
+                    Rectangle {
+                        Layout.fillWidth: true; height: 36; radius: 4
+                        color: "#f9fafb"
+                        border.color: holInput.activeFocus ? "#93c5fd" : "#e5e7eb"
+                        border.width: 1
+
+                        TextInput {
+                            id: holInput
+                            anchors { fill: parent; margins: 10 }
+                            font.pixelSize: 14; color: "#1f2937"
+                            verticalAlignment: TextInput.AlignVCenter
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                            text: utilRoot.holidayHours > 0 ? utilRoot.holidayHours : ""
+                            onTextChanged: {
+                                var v = parseFloat(text)
+                                utilRoot.holidayHours = (text === "" || isNaN(v) || v < 0) ? 0 : v
+                            }
+                            Text {
+                                text: "0"; color: "#d1d5db"; font.pixelSize: 14
+                                visible: !holInput.text
+                                anchors.verticalCenter: parent.verticalCenter
                             }
                         }
                     }
@@ -398,12 +423,23 @@ Item {
 
                         Label {
                             visible: utilResult ? utilResult.ptoHours > 0 : false
-                            text: "PTO / holiday hours deducted:"
+                            text: "PTO hours deducted:"
                             font.pixelSize: 12; color: "#6b7280"
                         }
                         Label {
                             visible: utilResult ? utilResult.ptoHours > 0 : false
                             text: utilResult ? (utilResult.ptoHours + " h") : ""
+                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                        }
+
+                        Label {
+                            visible: utilResult ? utilResult.holidayHours > 0 : false
+                            text: "Holiday hours deducted:"
+                            font.pixelSize: 12; color: "#6b7280"
+                        }
+                        Label {
+                            visible: utilResult ? utilResult.holidayHours > 0 : false
+                            text: utilResult ? (utilResult.holidayHours + " h") : ""
                             font.pixelSize: 12; font.bold: true; color: "#1f2937"
                         }
                     }
@@ -435,9 +471,15 @@ Item {
                 RateCard {
                     Layout.fillWidth: true
                     rateLabel: "Billable / Adjusted Hours"
-                    rateSubtitle: utilResult && utilResult.ptoHours > 0
-                                  ? "Billable hours as a share of standard hours minus " + utilResult.ptoHours + "h PTO/holiday"
-                                  : "Set PTO/holiday hours above to see an adjusted rate"
+                    rateSubtitle: {
+                        if (!utilResult) return ""
+                        var total = (utilResult.ptoHours || 0) + (utilResult.holidayHours || 0)
+                        if (total <= 0) return "Enter PTO or holiday hours above to see an adjusted rate"
+                        var parts = []
+                        if (utilResult.ptoHours > 0) parts.push(utilResult.ptoHours + "h PTO")
+                        if (utilResult.holidayHours > 0) parts.push(utilResult.holidayHours + "h holidays")
+                        return "Billable hours as a share of standard hours minus " + parts.join(" and ")
+                    }
                     rateValue: utilResult ? utilRoot.formatPct(utilResult.rate3) : ""
                     isNA: utilResult ? utilResult.rate3 < 0 : false
                     accentColor: "#8b5cf6"

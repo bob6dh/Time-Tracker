@@ -1032,15 +1032,15 @@ class TimeTrackerBackend(QObject):
         self.reportTotalChanged.emit()
         self.reportTotalSecondsChanged.emit()
 
-    @Slot(str, str, float, result='QVariantMap')
-    def calculateUtilization(self, start_date: str, end_date: str, pto_hours: float):
+    @Slot(str, str, float, float, result='QVariantMap')
+    def calculateUtilization(self, start_date: str, end_date: str, pto_hours: float, holiday_hours: float):
         """Calculate utilization rates for a date range.
 
         Standard working hours are fixed at 8 h/day (Mon–Fri).
-        pto_hours is the total PTO/holiday hours to deduct from standard hours.
+        pto_hours and holiday_hours are deducted from standard hours for the adjusted rate.
 
         Returns a dict with:
-          billableHours, totalHours, workingDays, ptoHours,
+          billableHours, totalHours, workingDays, ptoHours, holidayHours,
           standardHours, adjustedHours, rate1, rate2, rate3
         where rate values are percentages (0–100) or -1 when denominator is 0.
         """
@@ -1082,7 +1082,7 @@ class TimeTrackerBackend(QObject):
         billable_hours = billable_secs / 3600
         total_hours = total_secs / 3600
         standard_hours = working_days * 8
-        adjusted_hours = standard_hours - pto_hours
+        adjusted_hours = standard_hours - pto_hours - holiday_hours
 
         def pct(num, den):
             if den <= 0:
@@ -1094,6 +1094,7 @@ class TimeTrackerBackend(QObject):
             "totalHours": round(total_hours, 2),
             "workingDays": working_days,
             "ptoHours": pto_hours,
+            "holidayHours": holiday_hours,
             "standardHours": standard_hours,
             "adjustedHours": adjusted_hours,
             "rate1": pct(billable_hours, total_hours),
