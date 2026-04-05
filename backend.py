@@ -503,6 +503,31 @@ class TimeTrackerBackend(QObject):
     def dismissEod(self):
         self._eod_dismissed = True
 
+    @Slot(str, result="QVariantList")
+    def getDayData(self, day_key: str):
+        log = self._data["dailyLogs"].get(day_key, {})
+        return [
+            {
+                "project": proj,
+                "seconds": info["seconds"],
+                "description": info.get("description", ""),
+            }
+            for proj, info in log.items()
+        ]
+
+    @Slot(str, str, int)
+    def updateDayProjectTime(self, day_key: str, project: str, seconds: int):
+        logs = self._data["dailyLogs"]
+        if day_key not in logs or project not in logs[day_key]:
+            return
+        logs[day_key][project]["seconds"] = seconds
+        save_data(self._data)
+        self._history_model.refresh()
+        self._day_detail_model.load_day(day_key)
+        if day_key == date.today().isoformat():
+            self._project_model.refresh()
+            self.hasTodayLogsChanged.emit()
+
     @Slot()
     def refreshModels(self):
         self._project_model.refresh()

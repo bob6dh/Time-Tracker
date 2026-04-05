@@ -101,13 +101,13 @@ ApplicationWindow {
                     HistoryView {
                         onDaySelected: function(dayKey) {
                             root.selectedDay = dayKey
-                            backend.openDayDetail(dayKey)
                         }
                     }
 
-                    DayDetailView {
+                    TimeEditView {
                         dayKey: root.selectedDay
                         onBack: root.selectedDay = ""
+                        onSaved: root.selectedDay = ""
                     }
                 }
             }
