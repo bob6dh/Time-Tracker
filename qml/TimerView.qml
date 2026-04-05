@@ -170,7 +170,7 @@ Item {
                         required property int index
 
                         Layout.fillWidth: true
-                        height: projRow.implicitHeight + 24
+                        height: 62
                         radius: 6
                         color: isActive ? "#eef4ff" : "#ffffff"
                         border.color: isActive ? "#93c5fd" : "#e5e7eb"
