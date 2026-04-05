@@ -19,7 +19,7 @@ Dialog {
     }
 
     onOpened: {
-        secondsLeft = 30 * 60
+        secondsLeft = backend.inactivityTimeoutSecs
         countdownTimer.start()
     }
 

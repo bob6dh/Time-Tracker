@@ -427,6 +427,10 @@ class TimeTrackerBackend(QObject):
     def reportTotalSeconds(self):
         return self._report_model.total_seconds
 
+    @Property(int, constant=True)
+    def inactivityTimeoutSecs(self):
+        return self.INACTIVITY_TIMEOUT
+
     @Property(str, notify=summaryChanged)
     def todayTotal(self):
         today = date.today().isoformat()
