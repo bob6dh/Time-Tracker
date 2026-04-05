@@ -223,6 +223,7 @@ class DayDetailModel(QAbstractListModel):
 class EodModel(QAbstractListModel):
     ProjectRole = Qt.UserRole + 1
     DescriptionRole = Qt.UserRole + 2
+    TimeRole = Qt.UserRole + 3
 
     def __init__(self, backend, parent=None):
         super().__init__(parent)
@@ -233,6 +234,7 @@ class EodModel(QAbstractListModel):
         return {
             self.ProjectRole: QByteArray(b"project"),
             self.DescriptionRole: QByteArray(b"description"),
+            self.TimeRole: QByteArray(b"timeText"),
         }
 
     def rowCount(self, parent=QModelIndex()):
@@ -246,6 +248,8 @@ class EodModel(QAbstractListModel):
             return item["project"]
         if role == self.DescriptionRole:
             return item["description"]
+        if role == self.TimeRole:
+            return item["timeText"]
         return None
 
     @Slot()
@@ -254,7 +258,11 @@ class EodModel(QAbstractListModel):
         today = date.today().isoformat()
         log = self._backend._data["dailyLogs"].get(today, {})
         self._items = [
-            {"project": proj, "description": info.get("description", "")}
+            {
+                "project": proj,
+                "description": info.get("description", ""),
+                "timeText": fmt_time(info.get("seconds", 0)),
+            }
             for proj, info in log.items()
         ]
         self.endResetModel()
