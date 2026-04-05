@@ -176,30 +176,35 @@ Item {
                         border.color: isActive ? "#93c5fd" : "#e5e7eb"
                         border.width: 1
 
-                        RowLayout {
+                        Item {
                             id: projRow
                             anchors.fill: parent
                             anchors.margins: 14
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
+                            // Remove button — anchored to far right
+                            Label {
+                                id: removeBtn
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "\u2715"
+                                font.pixelSize: 15
+                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
 
-                                Label {
-                                    text: name
-                                    font.pixelSize: 15
-                                    font.bold: true
-                                    color: isActive ? "#2563eb" : "#1f2937"
-                                }
-                                Label {
-                                    text: "Today: " + todayTime
-                                    font.pixelSize: 12
-                                    color: "#6b7280"
+                                MouseArea {
+                                    id: removeMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.removeProject(name)
                                 }
                             }
 
-                            // Active badge or Start button
+                            // Active badge or Start button — anchored just left of remove button
                             Rectangle {
+                                id: actionBtn
+                                anchors.right: removeBtn.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
                                 width: isActive ? (activeLbl.implicitWidth + 20) : (startRow.implicitWidth + 24)
                                 height: 34
                                 radius: 17
@@ -257,19 +262,26 @@ Item {
                                 }
                             }
 
-                            // Remove button
-                            Label {
-                                text: "\u2715"
-                                font.pixelSize: 15
-                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
-                                Layout.leftMargin: 4
+                            // Project info — anchored left, right edge stops at action button
+                            ColumnLayout {
+                                anchors.left: parent.left
+                                anchors.right: actionBtn.left
+                                anchors.rightMargin: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
 
-                                MouseArea {
-                                    id: removeMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.removeProject(name)
+                                Label {
+                                    text: name
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                    color: isActive ? "#2563eb" : "#1f2937"
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                                Label {
+                                    text: "Today: " + todayTime
+                                    font.pixelSize: 12
+                                    color: "#6b7280"
                                 }
                             }
                         }
