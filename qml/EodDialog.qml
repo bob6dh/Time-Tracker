@@ -99,6 +99,11 @@ Dialog {
                         required property string timeText
                         required property int index
 
+                        // Compute once here; children reference projColor instead of
+                        // re-evaluating the palette lookup (avoids undefined QColor errors)
+                        readonly property string projColor:
+                            eodDialog.colorPalette[index % eodDialog.colorPalette.length]
+
                         Layout.fillWidth: true
                         implicitHeight: cardInner.implicitHeight + 24
                         radius: 8
@@ -114,7 +119,7 @@ Dialog {
                             anchors.leftMargin: 0
                             anchors.verticalCenter: parent.verticalCenter
                             radius: 2
-                            color: eodDialog.colorPalette[index % eodDialog.colorPalette.length]
+                            color: projColor
                         }
 
                         ColumnLayout {
@@ -141,7 +146,7 @@ Dialog {
                                     implicitWidth: timeBadge.implicitWidth + 12
                                     implicitHeight: timeBadge.implicitHeight + 6
                                     radius: 4
-                                    color: eodDialog.colorPalette[index % eodDialog.colorPalette.length]
+                                    color: projColor
                                     opacity: 0.15
 
                                     Label {
@@ -150,7 +155,7 @@ Dialog {
                                         text: timeText
                                         font.pixelSize: 12
                                         font.bold: true
-                                        color: eodDialog.colorPalette[index % eodDialog.colorPalette.length]
+                                        color: projColor
                                         opacity: 1 / parent.opacity
                                     }
                                 }
