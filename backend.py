@@ -580,6 +580,10 @@ class TimeTrackerBackend(QObject):
     def dismissEod(self):
         self._eod_dismissed = True
 
+    @Slot(result="QVariantList")
+    def getDatesWithData(self):
+        return list(self._data["dailyLogs"].keys())
+
     @Slot(str, result="QVariantList")
     def getDayData(self, day_key: str):
         log = self._data["dailyLogs"].get(day_key, {})
