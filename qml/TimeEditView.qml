@@ -28,6 +28,9 @@ Item {
     // Which project indices were modified by the user
     property var modifiedProjects: ({})
 
+    // Per-project descriptions: {projName: string}
+    property var descriptions: ({})
+
     // ── Flat session ListModel ────────────────────────────────────
     // Fields: projIdx, start, end
     ListModel { id: sessionModel }
@@ -74,14 +77,15 @@ Item {
         modifiedProjects = {}
         var data = backend.getDayData(dayKey)
         var meta = []
+        var descs = {}
         if (data && data.length > 0) {
             for (var pi = 0; pi < data.length; pi++) {
                 var proj = data[pi]
                 meta.push({ name: proj.project, color: colorPalette[pi % colorPalette.length] })
+                descs[proj.project] = proj.description || ""
                 var sessions = proj.sessions || []
                 for (var si = 0; si < sessions.length; si++) {
                     var s = sessions[si]
-                    // Only include sessions within the display range
                     var sStart = Math.max(s.start, startHour * 60)
                     var sEnd   = Math.min(s.end,   endHour   * 60)
                     if (sEnd > sStart) {
@@ -91,6 +95,7 @@ Item {
             }
         }
         projectMeta = meta
+        descriptions = descs
         recalcColWidth()
     }
 
@@ -103,10 +108,13 @@ Item {
             byProj[item.projIdx].push({ start: item.start, end: item.end })
         }
         for (var pi = 0; pi < projectMeta.length; pi++) {
+            var projName = projectMeta[pi].name
             if (modifiedProjects[pi]) {
                 var sessions = byProj[pi] || []
-                backend.saveDaySessions(dayKey, projectMeta[pi].name, JSON.stringify(sessions))
+                backend.saveDaySessions(dayKey, projName, JSON.stringify(sessions))
             }
+            // Always save descriptions (cheap and avoids tracking a separate dirty flag)
+            backend.saveProjectDescription(dayKey, projName, descriptions[projName] || "")
         }
         root.saved()
     }
@@ -146,6 +154,108 @@ Item {
             color: "#adb5bd"
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 20
+        }
+
+        // ── Daily Notes ───────────────────────────────────────────
+        Rectangle {
+            visible: projectMeta.length > 0
+            Layout.fillWidth: true
+            Layout.maximumHeight: 200
+            radius: 6
+            color: "#ffffff"
+            border.color: "#e5e7eb"
+            border.width: 1
+            Layout.bottomMargin: 8
+            implicitHeight: notesCol.implicitHeight + 20
+
+            ColumnLayout {
+                id: notesCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 }
+                spacing: 8
+
+                // Section header
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    Label {
+                        text: "Daily Notes"
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: "#6b7280"
+                        Layout.fillWidth: true
+                    }
+                    Label {
+                        text: "saved with time"
+                        font.pixelSize: 10
+                        color: "#d1d5db"
+                    }
+                }
+
+                // One row per project
+                Repeater {
+                    model: projectMeta.length
+
+                    RowLayout {
+                        required property int index
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        // Colour swatch + project name
+                        Rectangle {
+                            width: 3; height: noteField.implicitHeight + 2
+                            radius: 2
+                            color: projectMeta[index] ? projectMeta[index].color : "#ccc"
+                        }
+                        Label {
+                            text: projectMeta[index] ? projectMeta[index].name : ""
+                            font.pixelSize: 12
+                            font.bold: true
+                            color: "#374151"
+                            Layout.preferredWidth: 80
+                            elide: Text.ElideRight
+                        }
+
+                        // Editable description
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: noteField.implicitHeight + 10
+                            radius: 4
+                            color: noteField.activeFocus ? "#f0f4ff" : "#f9fafb"
+                            border.color: noteField.activeFocus ? "#93c5fd" : "#e5e7eb"
+                            border.width: 1
+
+                            TextInput {
+                                id: noteField
+                                anchors { fill: parent; margins: 5 }
+                                verticalAlignment: TextInput.AlignVCenter
+                                font.pixelSize: 12
+                                color: "#1f2937"
+                                clip: true
+                                text: (projectMeta[index] && descriptions[projectMeta[index].name])
+                                      ? descriptions[projectMeta[index].name] : ""
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "Add a note..."
+                                    color: "#d1d5db"
+                                    font.pixelSize: 12
+                                    visible: !noteField.text && !noteField.activeFocus
+                                }
+
+                                onTextChanged: {
+                                    if (projectMeta[index]) {
+                                        var d = descriptions
+                                        d[projectMeta[index].name] = text
+                                        descriptions = d
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item { height: 2 }  // bottom padding
+            }
         }
 
         // ── Calendar grid ─────────────────────────────────────────

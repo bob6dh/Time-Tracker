@@ -564,6 +564,15 @@ class TimeTrackerBackend(QObject):
             self._project_model.refresh()
             self.hasTodayLogsChanged.emit()
 
+    @Slot(str, str, str)
+    def saveProjectDescription(self, day_key: str, project: str, description: str):
+        logs = self._data["dailyLogs"]
+        if day_key not in logs or project not in logs[day_key]:
+            return
+        logs[day_key][project]["description"] = description
+        save_data(self._data)
+        self._day_detail_model.load_day(day_key)
+
     @Slot()
     def refreshModels(self):
         self._project_model.refresh()
