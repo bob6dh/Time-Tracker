@@ -200,39 +200,33 @@ Item {
 
                             // Active badge or Start button
                             Rectangle {
-                                visible: isActive
-                                width: activeLbl.implicitWidth + 20
-                                height: 32
-                                radius: 16
-                                color: "#dbeafe"
-                                border.color: "#93c5fd"
-                                border.width: 1
-
-                                Label {
-                                    id: activeLbl
-                                    anchors.centerIn: parent
-                                    text: "● Active"
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                    color: "#2563eb"
-                                }
-                            }
-
-                            Rectangle {
-                                visible: !isActive
-                                width: startRow.implicitWidth + 24
+                                width: isActive ? (activeLbl.implicitWidth + 20) : (startRow.implicitWidth + 24)
                                 height: 34
                                 radius: 17
+                                color: isActive ? "#dbeafe" : "transparent"
+                                border.color: isActive ? "#93c5fd" : "transparent"
+                                border.width: isActive ? 1 : 0
 
-                                gradient: Gradient {
+                                gradient: isActive ? null : Gradient {
                                     orientation: Gradient.Horizontal
                                     GradientStop { position: 0.0; color: startMa.containsMouse ? "#15803d" : "#16a34a" }
                                     GradientStop { position: 1.0; color: startMa.containsMouse ? "#166534" : "#15803d" }
                                 }
 
+                                Label {
+                                    id: activeLbl
+                                    anchors.centerIn: parent
+                                    visible: isActive
+                                    text: "● Active"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: "#2563eb"
+                                }
+
                                 Row {
                                     id: startRow
                                     anchors.centerIn: parent
+                                    visible: !isActive
                                     spacing: 5
 
                                     Label {
@@ -253,9 +247,10 @@ Item {
                                 MouseArea {
                                     id: startMa
                                     anchors.fill: parent
+                                    enabled: !isActive
                                     hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.startProject(name)
+                                    cursorShape: isActive ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    onClicked: if (!isActive) backend.startProject(name)
                                 }
                             }
 
