@@ -199,22 +199,27 @@ Item {
         }
 
         // ── Empty state ───────────────────────────────────────────
-        ColumnLayout {
+        // Fills remaining height so the title row stays at the top
+        Item {
             visible: projectMeta.length === 0 && !root.showNotes
-            Layout.alignment: Qt.AlignHCenter
-            Layout.topMargin: 40
-            spacing: 8
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: "No projects logged for this day"
-                font.pixelSize: 14
-                color: "#9ca3af"
-            }
-            Label {
-                Layout.alignment: Qt.AlignHCenter
-                text: "Click \u201c+ Add Project\u201d to log time for a project on this date"
-                font.pixelSize: 12
-                color: "#d1d5db"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: 8
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "No projects logged for this day"
+                    font.pixelSize: 14
+                    color: "#9ca3af"
+                }
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Click \u201c+ Add Project\u201d to log time for a project on this date"
+                    font.pixelSize: 12
+                    color: "#d1d5db"
+                }
             }
         }
 
