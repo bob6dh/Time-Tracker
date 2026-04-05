@@ -341,6 +341,7 @@ class TimeTrackerBackend(QObject):
     reportTotalSecondsChanged = Signal()
     exportDone = Signal(str, bool)  # (message, success)
     summaryChanged = Signal()
+    jsonTransferDone = Signal(str, bool)  # (message, success)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -765,6 +766,49 @@ class TimeTrackerBackend(QObject):
 
         except Exception as e:
             self.exportDone.emit(f"Export failed: {e}", False)
+
+    @Slot(str)
+    def exportJson(self, file_path: str):
+        try:
+            if file_path.startswith("file:///"):
+                file_path = file_path[8:]  # Windows: strip file:/// → C:/...
+            elif file_path.startswith("file://"):
+                file_path = file_path[7:]  # Unix: strip file:// → /home/...
+            if not file_path.endswith(".json"):
+                file_path += ".json"
+            with open(file_path, "w") as f:
+                json.dump(self._data, f, indent=2)
+            self.jsonTransferDone.emit(f"Exported to {os.path.basename(file_path)}", True)
+        except Exception as e:
+            self.jsonTransferDone.emit(f"Export failed: {e}", False)
+
+    @Slot(str)
+    def importJson(self, file_path: str):
+        try:
+            if file_path.startswith("file:///"):
+                file_path = file_path[8:]
+            elif file_path.startswith("file://"):
+                file_path = file_path[7:]
+            with open(file_path, "r") as f:
+                new_data = json.load(f)
+            if "dailyLogs" not in new_data:
+                self.jsonTransferDone.emit("Import failed: not a valid tracker data file", False)
+                return
+            # Migrate legacy string-format projects
+            new_data["projects"] = [
+                p if isinstance(p, dict)
+                else {"name": p, "billingCode": "", "billable": True}
+                for p in new_data.get("projects", [])
+            ]
+            self._data = new_data
+            save_data(self._data)
+            self._project_model.refresh()
+            self._history_model.refresh()
+            self.hasTodayLogsChanged.emit()
+            self.summaryChanged.emit()
+            self.jsonTransferDone.emit(f"Imported {os.path.basename(file_path)}", True)
+        except Exception as e:
+            self.jsonTransferDone.emit(f"Import failed: {e}", False)
 
     # ── Internal ──
 
