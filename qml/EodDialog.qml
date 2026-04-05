@@ -101,8 +101,10 @@ Dialog {
 
                         // Compute once here; children reference projColor instead of
                         // re-evaluating the palette lookup (avoids undefined QColor errors)
-                        readonly property string projColor:
-                            eodDialog.colorPalette[index % eodDialog.colorPalette.length]
+                        readonly property var projColor:
+                            (eodDialog.colorPalette && index >= 0)
+                                ? eodDialog.colorPalette[index % eodDialog.colorPalette.length]
+                                : "#4a86c8"
 
                         Layout.fillWidth: true
                         implicitHeight: cardInner.implicitHeight + 24
