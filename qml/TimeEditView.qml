@@ -33,7 +33,7 @@ Item {
     ListModel { id: sessionModel }
 
     // ── Color palette ─────────────────────────────────────────────
-    readonly property var palette: [
+    readonly property var colorPalette: [
         "#4a86c8", "#e07b54", "#5cb85c", "#9b59b6",
         "#e67e22", "#1abc9c", "#e74c3c", "#f39c12"
     ]
@@ -77,7 +77,7 @@ Item {
         if (data && data.length > 0) {
             for (var pi = 0; pi < data.length; pi++) {
                 var proj = data[pi]
-                meta.push({ name: proj.project, color: palette[pi % palette.length] })
+                meta.push({ name: proj.project, color: colorPalette[pi % colorPalette.length] })
                 var sessions = proj.sessions || []
                 for (var si = 0; si < sessions.length; si++) {
                     var s = sessions[si]
