@@ -340,6 +340,7 @@ class TimeTrackerBackend(QObject):
     reportTotalChanged = Signal()
     reportTotalSecondsChanged = Signal()
     exportDone = Signal(str, bool)  # (message, success)
+    summaryChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -425,6 +426,38 @@ class TimeTrackerBackend(QObject):
     def reportTotalSeconds(self):
         return self._report_model.total_seconds
 
+    @Property(str, notify=summaryChanged)
+    def todayTotal(self):
+        today = date.today().isoformat()
+        secs = sum(v["seconds"] for v in self._data["dailyLogs"].get(today, {}).values())
+        if self._active_project and self._session_start:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=summaryChanged)
+    def weekTotal(self):
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        secs = 0
+        for i in range(7):
+            dk = (monday + timedelta(days=i)).isoformat()
+            secs += sum(v["seconds"] for v in self._data["dailyLogs"].get(dk, {}).values())
+        if self._active_project and self._session_start:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=summaryChanged)
+    def monthTotal(self):
+        today = date.today()
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        secs = 0
+        for d in range(1, days_in_month + 1):
+            dk = date(today.year, today.month, d).isoformat()
+            secs += sum(v["seconds"] for v in self._data["dailyLogs"].get(dk, {}).values())
+        if self._active_project and self._session_start:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
     # ── Slots ──
 
     @Slot(str, str, bool)
@@ -479,6 +512,7 @@ class TimeTrackerBackend(QObject):
         self.activeProjectChanged.emit()
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
+        self.summaryChanged.emit()
         self._project_model.refresh()
         self._history_model.refresh()
         self.hasTodayLogsChanged.emit()
@@ -781,6 +815,7 @@ class TimeTrackerBackend(QObject):
             self._elapsed = int(time.time() - self._session_start)
             self.elapsedChanged.emit()
             self.elapsedTextChanged.emit()
+            self.summaryChanged.emit()
             # Refresh models to update "today" times for active project
             self._project_model.refresh()
             self._history_model.refresh()

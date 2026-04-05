@@ -21,6 +21,66 @@ Item {
                 width: parent.width
                 spacing: 6
 
+                // ── Daily / weekly / monthly summary ─────────────
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: summaryRow.implicitHeight + 20
+                    radius: 6
+                    color: "#ffffff"
+                    border.color: "#e5e7eb"
+                    border.width: 1
+
+                    Row {
+                        id: summaryRow
+                        anchors.centerIn: parent
+                        width: parent.width - 24
+                        spacing: 0
+
+                        Repeater {
+                            model: [
+                                { label: "Today",     value: backend.todayTotal },
+                                { label: "This Week",  value: backend.weekTotal  },
+                                { label: "This Month", value: backend.monthTotal  }
+                            ]
+
+                            Item {
+                                required property var modelData
+                                width: summaryRow.width / 3
+                                height: summaryCol.implicitHeight
+
+                                // Divider between cells (not before the first)
+                                Rectangle {
+                                    visible: index > 0
+                                    x: 0; y: 4
+                                    width: 1
+                                    height: parent.height - 8
+                                    color: "#e5e7eb"
+                                }
+
+                                ColumnLayout {
+                                    id: summaryCol
+                                    anchors.centerIn: parent
+                                    spacing: 2
+
+                                    Label {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.value
+                                        font.pixelSize: 18
+                                        font.bold: true
+                                        color: "#1f2937"
+                                    }
+                                    Label {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.label
+                                        font.pixelSize: 11
+                                        color: "#9ca3af"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Active timer card
                 Rectangle {
                     Layout.fillWidth: true
