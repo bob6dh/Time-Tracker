@@ -272,8 +272,10 @@ Item {
 
                         MouseArea {
                             anchors.fill: parent
+                            preventStealing: true
                             // Blocks (z=2) are above this so they steal events first
                             onPressed: function(mouse) {
+                                calFlick.interactive = false
                                 var rawMin = yToMinute(mouse.y)
                                 var snapped = snapMin(rawMin)
                                 snapped = clampMin(snapped,
@@ -298,6 +300,7 @@ Item {
                                 }
                             }
                             onReleased: function(mouse) {
+                                calFlick.interactive = true
                                 if (colBg.isDragging
                                     && (colBg.previewEnd - colBg.previewStart) >= snapMins) {
                                     var mp = modifiedProjects
@@ -355,11 +358,18 @@ Item {
                         height: Math.max(8, (end - start) * minuteH)
                         z: 2   // above column backgrounds
 
-                        property bool isSelected:       false
                         property bool isResizingTop:    false
                         property bool isResizingBottom: false
                         property color blockColor: projectMeta.length > projIdx
                                                    ? projectMeta[projIdx].color : "#888"
+
+                        // Hover detection for the whole block
+                        MouseArea {
+                            id: blockHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton  // pass clicks through to children
+                        }
 
                         // Main block rectangle
                         Rectangle {
@@ -369,23 +379,24 @@ Item {
                             radius:  3
                             clip:    true
 
-                            // Time label
+                            // Time label — shrinks when × is visible
                             Label {
                                 visible: blockItem.height > 16
                                 anchors { left: parent.left; leftMargin: 3
                                           top: parent.top; topMargin: 2 }
-                                width: parent.width - (blockItem.isSelected ? 22 : 6)
+                                width: parent.width - (showDelete ? 22 : 6)
+                                property bool showDelete: blockHover.containsMouse || blockItem.height < 30
                                 text: fmtMin(blockItem.start) + " – " + fmtMin(blockItem.end)
                                 font.pixelSize: 8
                                 color: "white"
                                 elide: Text.ElideRight
                             }
 
-                            // Delete button (visible when selected)
+                            // Delete button — visible on hover or when block is too small to hover
                             Rectangle {
-                                visible: blockItem.isSelected
+                                visible: blockHover.containsMouse || blockItem.height < 30
                                 width: 16; height: 16; radius: 8
-                                color: "#ef4444"
+                                color: deleteMa.containsMouse ? "#dc2626" : "#ef4444"
                                 anchors { top: parent.top; right: parent.right
                                           topMargin: 2; rightMargin: 2 }
                                 z: 4
@@ -396,7 +407,9 @@ Item {
                                     color: "white"
                                 }
                                 MouseArea {
+                                    id: deleteMa
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     z: 5
                                     onClicked: {
                                         var mp = modifiedProjects
@@ -408,27 +421,20 @@ Item {
                             }
                         }
 
-                        // Body click → select / deselect
-                        MouseArea {
-                            anchors.fill:         parent
-                            anchors.topMargin:    8
-                            anchors.bottomMargin: 8
-                            z: 2
-                            onClicked: blockItem.isSelected = !blockItem.isSelected
-                        }
-
                         // ── Top resize handle ─────────────────────
                         MouseArea {
                             id: topHandle
                             anchors.top: parent.top
-                            width: parent.width; height: 8
+                            width: parent.width; height: 10
                             cursorShape: Qt.SizeVerCursor
+                            preventStealing: true
                             z: 3
 
                             property real pressContentY: 0
                             property int  pressStart:    0
 
                             onPressed: function(mouse) {
+                                calFlick.interactive = false
                                 var pt = mapToItem(gridContent, mouse.x, mouse.y)
                                 pressContentY           = pt.y
                                 pressStart              = blockItem.start
@@ -443,6 +449,7 @@ Item {
                                 sessionModel.setProperty(blockItem.index, "start", newS)
                             }
                             onReleased: {
+                                calFlick.interactive = true
                                 var mp = modifiedProjects
                                 mp[blockItem.projIdx] = true
                                 modifiedProjects = mp
@@ -454,14 +461,16 @@ Item {
                         MouseArea {
                             id: bottomHandle
                             anchors.bottom: parent.bottom
-                            width: parent.width; height: 8
+                            width: parent.width; height: 10
                             cursorShape: Qt.SizeVerCursor
+                            preventStealing: true
                             z: 3
 
                             property real pressContentY: 0
                             property int  pressEnd:      0
 
                             onPressed: function(mouse) {
+                                calFlick.interactive = false
                                 var pt = mapToItem(gridContent, mouse.x, mouse.y)
                                 pressContentY              = pt.y
                                 pressEnd                   = blockItem.end
@@ -476,6 +485,7 @@ Item {
                                 sessionModel.setProperty(blockItem.index, "end", newE)
                             }
                             onReleased: {
+                                calFlick.interactive = true
                                 var mp = modifiedProjects
                                 mp[blockItem.projIdx] = true
                                 modifiedProjects = mp
@@ -490,7 +500,7 @@ Item {
         // Hint
         Label {
             visible: projectMeta.length > 0
-            text: "Drag in column to add time  \u2022  click block to delete  \u2022  drag block edges to resize"
+            text: "Drag in column to add time  \u2022  hover block and click \u00d7 to delete  \u2022  drag block edges to resize"
             font.pixelSize: 10
             color: "#9ca3af"
             Layout.topMargin: 6
