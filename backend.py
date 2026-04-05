@@ -16,11 +16,23 @@ from PySide6.QtCore import (
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tracker_data.json")
 
 
+def _proj_name(p):
+    """Return the name string from either a legacy string project or a dict project."""
+    return p["name"] if isinstance(p, dict) else p
+
+
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Migrate legacy string-format projects to dict format
+            data["projects"] = [
+                p if isinstance(p, dict)
+                else {"name": p, "billingCode": "", "billable": True}
+                for p in data.get("projects", [])
+            ]
+            return data
         except Exception:
             pass
     return {"projects": [], "checkInInterval": 30, "dailyLogs": {}}
@@ -55,6 +67,8 @@ class ProjectListModel(QAbstractListModel):
     NameRole = Qt.UserRole + 1
     TodayTimeRole = Qt.UserRole + 2
     IsActiveRole = Qt.UserRole + 3
+    BillingCodeRole = Qt.UserRole + 4
+    BillableRole = Qt.UserRole + 5
 
     def __init__(self, backend, parent=None):
         super().__init__(parent)
@@ -65,21 +79,38 @@ class ProjectListModel(QAbstractListModel):
             self.NameRole: QByteArray(b"name"),
             self.TodayTimeRole: QByteArray(b"todayTime"),
             self.IsActiveRole: QByteArray(b"isActive"),
+            self.BillingCodeRole: QByteArray(b"billingCode"),
+            self.BillableRole: QByteArray(b"billable"),
         }
 
+    def _visible(self):
+        """Return only non-archived projects for the timer UI.
+        Archived projects are intentionally NOT filtered from dailyLogs,
+        so their data remains fully visible in history, reports, and exports.
+        """
+        return [
+            p for p in self._backend._data["projects"]
+            if not (isinstance(p, dict) and p.get("archived", False))
+        ]
+
     def rowCount(self, parent=QModelIndex()):
-        return len(self._backend._data["projects"])
+        return len(self._visible())
 
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        proj = self._backend._data["projects"][index.row()]
+        proj = self._visible()[index.row()]
+        name = _proj_name(proj)
         if role == self.NameRole:
-            return proj
+            return name
         if role == self.TodayTimeRole:
-            return fmt_time(self._backend._get_today_total(proj))
+            return fmt_time(self._backend._get_today_total(name))
         if role == self.IsActiveRole:
-            return self._backend._active_project == proj
+            return self._backend._active_project == name
+        if role == self.BillingCodeRole:
+            return proj.get("billingCode", "") if isinstance(proj, dict) else ""
+        if role == self.BillableRole:
+            return proj.get("billable", True) if isinstance(proj, dict) else True
         return None
 
     def refresh(self):
@@ -202,6 +233,7 @@ class DayDetailModel(QAbstractListModel):
 class EodModel(QAbstractListModel):
     ProjectRole = Qt.UserRole + 1
     DescriptionRole = Qt.UserRole + 2
+    TimeRole = Qt.UserRole + 3
 
     def __init__(self, backend, parent=None):
         super().__init__(parent)
@@ -212,6 +244,7 @@ class EodModel(QAbstractListModel):
         return {
             self.ProjectRole: QByteArray(b"project"),
             self.DescriptionRole: QByteArray(b"description"),
+            self.TimeRole: QByteArray(b"timeText"),
         }
 
     def rowCount(self, parent=QModelIndex()):
@@ -225,6 +258,8 @@ class EodModel(QAbstractListModel):
             return item["project"]
         if role == self.DescriptionRole:
             return item["description"]
+        if role == self.TimeRole:
+            return item["timeText"]
         return None
 
     @Slot()
@@ -233,7 +268,11 @@ class EodModel(QAbstractListModel):
         today = date.today().isoformat()
         log = self._backend._data["dailyLogs"].get(today, {})
         self._items = [
-            {"project": proj, "description": info.get("description", "")}
+            {
+                "project": proj,
+                "description": info.get("description", ""),
+                "timeText": fmt_time(info.get("seconds", 0)),
+            }
             for proj, info in log.items()
         ]
         self.endResetModel()
@@ -319,6 +358,9 @@ class TimeTrackerBackend(QObject):
     reportTotalChanged = Signal()
     reportTotalSecondsChanged = Signal()
     exportDone = Signal(str, bool)  # (message, success)
+    summaryChanged = Signal()
+    jsonTransferDone = Signal(str, bool)  # (message, success)
+    archivedProjectsChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -404,24 +446,95 @@ class TimeTrackerBackend(QObject):
     def reportTotalSeconds(self):
         return self._report_model.total_seconds
 
+    @Property(int, constant=True)
+    def inactivityTimeoutSecs(self):
+        return self.INACTIVITY_TIMEOUT
+
+    @Property(str, notify=summaryChanged)
+    def todayTotal(self):
+        today = date.today().isoformat()
+        secs = sum(v["seconds"] for v in self._data["dailyLogs"].get(today, {}).values())
+        if self._active_project and self._session_start:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=summaryChanged)
+    def weekTotal(self):
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        secs = 0
+        for i in range(7):
+            dk = (monday + timedelta(days=i)).isoformat()
+            secs += sum(v["seconds"] for v in self._data["dailyLogs"].get(dk, {}).values())
+        if self._active_project and self._session_start:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=summaryChanged)
+    def monthTotal(self):
+        today = date.today()
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        secs = 0
+        for d in range(1, days_in_month + 1):
+            dk = date(today.year, today.month, d).isoformat()
+            secs += sum(v["seconds"] for v in self._data["dailyLogs"].get(dk, {}).values())
+        if self._active_project and self._session_start:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
     # ── Slots ──
 
-    @Slot(str)
-    def addProject(self, name):
+    @Slot(str, str, bool)
+    def addProject(self, name: str, billing_code: str, billable: bool):
         name = name.strip()
-        if not name or name in self._data["projects"]:
+        if not name:
             return
-        self._data["projects"].append(name)
+        existing = [_proj_name(p) for p in self._data["projects"]]
+        if name in existing:
+            return
+        self._data["projects"].append({
+            "name": name,
+            "billingCode": billing_code.strip(),
+            "billable": billable,
+        })
         save_data(self._data)
         self._project_model.refresh()
 
     @Slot(str)
-    def removeProject(self, name):
+    def archiveProject(self, name: str):
         if self._active_project == name:
             self.stopTimer()
-        self._data["projects"] = [p for p in self._data["projects"] if p != name]
+        for p in self._data["projects"]:
+            if _proj_name(p) == name:
+                if isinstance(p, dict):
+                    p["archived"] = True
+                break
         save_data(self._data)
         self._project_model.refresh()
+        self.archivedProjectsChanged.emit()
+
+    @Slot(str)
+    def reinstateProject(self, name: str):
+        for p in self._data["projects"]:
+            if _proj_name(p) == name:
+                if isinstance(p, dict):
+                    p["archived"] = False
+                break
+        save_data(self._data)
+        self._project_model.refresh()
+        self.archivedProjectsChanged.emit()
+
+    @Slot(result="QVariantList")
+    def getArchivedProjects(self):
+        return [
+            {
+                "name": _proj_name(p),
+                "billingCode": p.get("billingCode", "") if isinstance(p, dict) else "",
+                "billable": p.get("billable", True) if isinstance(p, dict) else True,
+            }
+            for p in self._data["projects"]
+            if isinstance(p, dict) and p.get("archived", False)
+        ]
 
     @Slot(str)
     def startProject(self, name):
@@ -449,6 +562,7 @@ class TimeTrackerBackend(QObject):
         self.activeProjectChanged.emit()
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
+        self.summaryChanged.emit()
         self._project_model.refresh()
         self._history_model.refresh()
         self.hasTodayLogsChanged.emit()
@@ -502,6 +616,84 @@ class TimeTrackerBackend(QObject):
     @Slot()
     def dismissEod(self):
         self._eod_dismissed = True
+
+    @Slot(result="QVariantList")
+    def getDatesWithData(self):
+        return list(self._data["dailyLogs"].keys())
+
+    @Slot(str, str)
+    def removeProjectFromDay(self, day_key: str, project_name: str):
+        logs = self._data["dailyLogs"]
+        if day_key in logs and project_name in logs[day_key]:
+            del logs[day_key][project_name]
+            if not logs[day_key]:          # remove empty day entry
+                del logs[day_key]
+            save_data(self._data)
+            self._history_model.refresh()
+            self._day_detail_model.load_day(day_key)
+            if day_key == date.today().isoformat():
+                self._project_model.refresh()
+                self.hasTodayLogsChanged.emit()
+            self.summaryChanged.emit()
+
+    @Slot(str, str)
+    def addProjectToDay(self, day_key: str, project_name: str):
+        logs = self._data["dailyLogs"]
+        if day_key not in logs:
+            logs[day_key] = {}
+        if project_name not in logs[day_key]:
+            logs[day_key][project_name] = {
+                "seconds": 0,
+                "sessions": [],
+                "description": "",
+            }
+            save_data(self._data)
+            self._history_model.refresh()
+            self._day_detail_model.load_day(day_key)
+            if day_key == date.today().isoformat():
+                self._project_model.refresh()
+                self.hasTodayLogsChanged.emit()
+            self.summaryChanged.emit()
+
+    @Slot(str, result="QVariantList")
+    def getDayData(self, day_key: str):
+        log = self._data["dailyLogs"].get(day_key, {})
+        return [
+            {
+                "project": proj,
+                "seconds": info["seconds"],
+                "sessions": info.get("sessions", []),
+                "description": info.get("description", ""),
+            }
+            for proj, info in log.items()
+        ]
+
+    @Slot(str, str, str)
+    def saveDaySessions(self, day_key: str, project: str, sessions_json: str):
+        import json as _json
+        sessions = _json.loads(sessions_json)
+        logs = self._data["dailyLogs"]
+        if day_key not in logs or project not in logs[day_key]:
+            return
+        logs[day_key][project]["sessions"] = sessions
+        logs[day_key][project]["seconds"] = sum(
+            (s["end"] - s["start"]) * 60 for s in sessions
+        )
+        save_data(self._data)
+        self._history_model.refresh()
+        self._day_detail_model.load_day(day_key)
+        if day_key == date.today().isoformat():
+            self._project_model.refresh()
+            self.hasTodayLogsChanged.emit()
+
+    @Slot(str, str, str)
+    def saveProjectDescription(self, day_key: str, project: str, description: str):
+        logs = self._data["dailyLogs"]
+        if day_key not in logs or project not in logs[day_key]:
+            return
+        logs[day_key][project]["description"] = description
+        save_data(self._data)
+        self._day_detail_model.load_day(day_key)
 
     @Slot()
     def refreshModels(self):
@@ -662,20 +854,79 @@ class TimeTrackerBackend(QObject):
         except Exception as e:
             self.exportDone.emit(f"Export failed: {e}", False)
 
+    @Slot(str)
+    def exportJson(self, file_path: str):
+        try:
+            if file_path.startswith("file:///"):
+                file_path = file_path[8:]  # Windows: strip file:/// → C:/...
+            elif file_path.startswith("file://"):
+                file_path = file_path[7:]  # Unix: strip file:// → /home/...
+            if not file_path.endswith(".json"):
+                file_path += ".json"
+            with open(file_path, "w") as f:
+                json.dump(self._data, f, indent=2)
+            self.jsonTransferDone.emit(f"Exported to {os.path.basename(file_path)}", True)
+        except Exception as e:
+            self.jsonTransferDone.emit(f"Export failed: {e}", False)
+
+    @Slot(str)
+    def importJson(self, file_path: str):
+        try:
+            if file_path.startswith("file:///"):
+                file_path = file_path[8:]
+            elif file_path.startswith("file://"):
+                file_path = file_path[7:]
+            with open(file_path, "r") as f:
+                new_data = json.load(f)
+            if "dailyLogs" not in new_data:
+                self.jsonTransferDone.emit("Import failed: not a valid tracker data file", False)
+                return
+            # Migrate legacy string-format projects
+            new_data["projects"] = [
+                p if isinstance(p, dict)
+                else {"name": p, "billingCode": "", "billable": True}
+                for p in new_data.get("projects", [])
+            ]
+            self._data = new_data
+            save_data(self._data)
+            self._project_model.refresh()
+            self._history_model.refresh()
+            self.hasTodayLogsChanged.emit()
+            self.summaryChanged.emit()
+            self.jsonTransferDone.emit(f"Imported {os.path.basename(file_path)}", True)
+        except Exception as e:
+            self.jsonTransferDone.emit(f"Import failed: {e}", False)
+
     # ── Internal ──
 
     def _log_time(self, secs):
         if not self._active_project or secs <= 0:
             return
-        today = date.today().isoformat()
-        if today not in self._data["dailyLogs"]:
-            self._data["dailyLogs"][today] = {}
-        if self._active_project not in self._data["dailyLogs"][today]:
-            self._data["dailyLogs"][today][self._active_project] = {
+        session_start_ts = self._session_start if self._session_start else (time.time() - secs)
+        start_dt = datetime.fromtimestamp(session_start_ts)
+        end_dt = datetime.fromtimestamp(session_start_ts + secs)
+
+        start_min = start_dt.hour * 60 + start_dt.minute
+        # Clamp to same calendar day
+        if end_dt.date() != start_dt.date():
+            end_min = 23 * 60 + 59
+        else:
+            end_min = end_dt.hour * 60 + end_dt.minute
+
+        day_key = start_dt.date().isoformat()
+        if day_key not in self._data["dailyLogs"]:
+            self._data["dailyLogs"][day_key] = {}
+        if self._active_project not in self._data["dailyLogs"][day_key]:
+            self._data["dailyLogs"][day_key][self._active_project] = {
                 "seconds": 0,
+                "sessions": [],
                 "description": "",
             }
-        self._data["dailyLogs"][today][self._active_project]["seconds"] += secs
+        entry = self._data["dailyLogs"][day_key][self._active_project]
+        if "sessions" not in entry:
+            entry["sessions"] = []
+        entry["sessions"].append({"start": start_min, "end": end_min})
+        entry["seconds"] = sum((s["end"] - s["start"]) * 60 for s in entry["sessions"])
         save_data(self._data)
 
     def _get_today_total(self, proj):
@@ -695,6 +946,7 @@ class TimeTrackerBackend(QObject):
             self._elapsed = int(time.time() - self._session_start)
             self.elapsedChanged.emit()
             self.elapsedTextChanged.emit()
+            self.summaryChanged.emit()
             # Refresh models to update "today" times for active project
             self._project_model.refresh()
             self._history_model.refresh()
@@ -779,3 +1031,73 @@ class TimeTrackerBackend(QObject):
         self.reportLabelChanged.emit()
         self.reportTotalChanged.emit()
         self.reportTotalSecondsChanged.emit()
+
+    @Slot(str, str, float, float, result='QVariantMap')
+    def calculateUtilization(self, start_date: str, end_date: str, pto_hours: float, holiday_hours: float):
+        """Calculate utilization rates for a date range.
+
+        Standard working hours are fixed at 8 h/day (Mon–Fri).
+        pto_hours and holiday_hours are deducted from standard hours for the adjusted rate.
+
+        Returns a dict with:
+          billableHours, totalHours, workingDays, ptoHours, holidayHours,
+          standardHours, adjustedHours, rate1, rate2, rate3
+        where rate values are percentages (0–100) or -1 when denominator is 0.
+        """
+        try:
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+        except Exception:
+            return {"error": "Invalid date format. Use YYYY-MM-DD."}
+
+        if end < start:
+            return {"error": "End date must be on or after start date."}
+
+        # Build set of billable project names (includes archived)
+        billable_projects = set()
+        for p in self._data["projects"]:
+            if isinstance(p, dict):
+                if p.get("billable", True):
+                    billable_projects.add(p["name"])
+            else:
+                billable_projects.add(p)
+
+        # Sum billable and total seconds; count Mon–Fri working days
+        billable_secs = 0
+        total_secs = 0
+        working_days = 0
+        cur = start
+        while cur <= end:
+            dk = cur.isoformat()
+            log = self._data["dailyLogs"].get(dk, {})
+            for proj, info in log.items():
+                secs = info.get("seconds", 0)
+                total_secs += secs
+                if proj in billable_projects:
+                    billable_secs += secs
+            if cur.weekday() < 5:  # Monday–Friday
+                working_days += 1
+            cur += timedelta(days=1)
+
+        billable_hours = billable_secs / 3600
+        total_hours = total_secs / 3600
+        standard_hours = working_days * 8
+        adjusted_hours = standard_hours - pto_hours - holiday_hours
+
+        def pct(num, den):
+            if den <= 0:
+                return -1.0
+            return round(num / den * 100, 1)
+
+        return {
+            "billableHours": round(billable_hours, 2),
+            "totalHours": round(total_hours, 2),
+            "workingDays": working_days,
+            "ptoHours": pto_hours,
+            "holidayHours": holiday_hours,
+            "standardHours": standard_hours,
+            "adjustedHours": adjusted_hours,
+            "rate1": pct(billable_hours, total_hours),
+            "rate2": pct(billable_hours, standard_hours),
+            "rate3": pct(billable_hours, adjusted_hours),
+        }

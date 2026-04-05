@@ -15,8 +15,8 @@ ApplicationWindow {
     property string currentView: "timer"
     property string selectedDay: ""
 
-    CheckInDialog {
-        id: checkInDialog
+    CheckInWindow {
+        id: checkInWindow
     }
 
     EodDialog {
@@ -25,7 +25,7 @@ ApplicationWindow {
 
     Connections {
         target: backend
-        function onShowCheckIn() { checkInDialog.open() }
+        function onShowCheckIn() { checkInWindow.showWindow() }
         function onShowEod() { eodDialog.open() }
     }
 
@@ -101,13 +101,13 @@ ApplicationWindow {
                     HistoryView {
                         onDaySelected: function(dayKey) {
                             root.selectedDay = dayKey
-                            backend.openDayDetail(dayKey)
                         }
                     }
 
-                    DayDetailView {
+                    TimeEditView {
                         dayKey: root.selectedDay
                         onBack: root.selectedDay = ""
+                        onSaved: root.selectedDay = ""
                     }
                 }
             }

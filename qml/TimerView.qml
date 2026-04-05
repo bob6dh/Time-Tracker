@@ -21,6 +21,55 @@ Item {
                 width: parent.width
                 spacing: 6
 
+                // ── Daily / weekly / monthly summary ─────────────
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: summaryRow.implicitHeight + 20
+                    radius: 6
+                    color: "#1f2937"
+
+                    Row {
+                        id: summaryRow
+                        anchors.centerIn: parent
+                        width: parent.width - 24
+                        spacing: 0
+
+                        Repeater {
+                            model: [
+                                { label: "Today",      value: backend.todayTotal },
+                                { label: "This Week",  value: backend.weekTotal  },
+                                { label: "This Month", value: backend.monthTotal  }
+                            ]
+
+                            Item {
+                                required property var modelData
+                                width: summaryRow.width / 3
+                                height: summaryCol.implicitHeight
+
+                                ColumnLayout {
+                                    id: summaryCol
+                                    anchors.centerIn: parent
+                                    spacing: 2
+
+                                    Label {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.value
+                                        font.pixelSize: 18
+                                        font.bold: true
+                                        color: "#f9fafb"
+                                    }
+                                    Label {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.label
+                                        font.pixelSize: 11
+                                        color: "#9ca3af"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Active timer card
                 Rectangle {
                     Layout.fillWidth: true
@@ -80,73 +129,8 @@ Item {
                     }
                 }
 
-                // Add project row
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    Layout.bottomMargin: 4
-                    spacing: 8
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 40
-                        radius: 4
-                        color: "#ffffff"
-                        border.color: "#e5e7eb"
-                        border.width: 1
-
-                        TextInput {
-                            id: addInput
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            verticalAlignment: TextInput.AlignVCenter
-                            font.pixelSize: 14
-                            color: "#1f2937"
-                            clip: true
-
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: "Project name..."
-                                color: "#adb5bd"
-                                font.pixelSize: 14
-                                visible: !addInput.text && !addInput.activeFocus
-                            }
-
-                            Keys.onReturnPressed: {
-                                if (addInput.text.trim() !== "") {
-                                    backend.addProject(addInput.text)
-                                    addInput.text = ""
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: 60
-                        height: 40
-                        radius: 4
-                        color: addBtnMa.containsMouse ? "#374151" : "#1f2937"
-
-                        Label {
-                            anchors.centerIn: parent
-                            text: "Add"
-                            font.pixelSize: 14
-                            color: "white"
-                        }
-                        MouseArea {
-                            id: addBtnMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (addInput.text.trim() !== "") {
-                                    backend.addProject(addInput.text)
-                                    addInput.text = ""
-                                }
-                            }
-                        }
-                    }
-                }
+                ProjectDialog { id: projectDialog }
+                ConfirmRemoveDialog { id: confirmRemoveDialog }
 
                 // Empty state
                 Label {
@@ -166,11 +150,13 @@ Item {
                     Rectangle {
                         required property string name
                         required property string todayTime
-                        required property bool isActive
-                        required property int index
+                        required property bool   isActive
+                        required property int    index
+                        required property string billingCode
+                        required property bool   billable
 
                         Layout.fillWidth: true
-                        height: 62
+                        height: 70
                         radius: 6
                         color: isActive ? "#eef4ff" : "#ffffff"
                         border.color: isActive ? "#93c5fd" : "#e5e7eb"
@@ -195,7 +181,10 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: backend.removeProject(name)
+                                    onClicked: {
+                                    confirmRemoveDialog.projectName = name
+                                    confirmRemoveDialog.open()
+                                }
                                 }
                             }
 
@@ -268,7 +257,7 @@ Item {
                                 anchors.right: actionBtn.left
                                 anchors.rightMargin: 8
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
+                                spacing: 3
 
                                 Label {
                                     text: name
@@ -278,10 +267,48 @@ Item {
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                 }
-                                Label {
-                                    text: "Today: " + todayTime
-                                    font.pixelSize: 12
-                                    color: "#6b7280"
+
+                                // Billing info + today time row
+                                Row {
+                                    spacing: 6
+
+                                    // Billable badge
+                                    Rectangle {
+                                        height: 16; radius: 3
+                                        width: billableLbl.implicitWidth + 8
+                                        color: billable ? "#dcfce7" : "#f3f4f6"
+
+                                        Label {
+                                            id: billableLbl
+                                            anchors.centerIn: parent
+                                            text: billable ? "$ Billable" : "Non-billable"
+                                            font.pixelSize: 10
+                                            color: billable ? "#16a34a" : "#9ca3af"
+                                        }
+                                    }
+
+                                    // Billing code tag (only if set)
+                                    Rectangle {
+                                        visible: billingCode !== ""
+                                        height: 16; radius: 3
+                                        width: codeLabel.implicitWidth + 8
+                                        color: "#f0f4ff"
+
+                                        Label {
+                                            id: codeLabel
+                                            anchors.centerIn: parent
+                                            text: billingCode
+                                            font.pixelSize: 10
+                                            color: "#4a86c8"
+                                        }
+                                    }
+
+                                    Label {
+                                        text: "· Today: " + todayTime
+                                        font.pixelSize: 11
+                                        color: "#9ca3af"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
                                 }
                             }
                         }
@@ -311,6 +338,40 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: backend.openEodDialog()
+                    }
+                }
+
+                // New Project button
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 40
+                    radius: 4
+                    color: newProjMa.containsMouse ? "#374151" : "#1f2937"
+                    Layout.topMargin: 6
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Label {
+                            text: "+"
+                            font.pixelSize: 18
+                            color: "white"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Label {
+                            text: "New Project"
+                            font.pixelSize: 14
+                            color: "white"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        id: newProjMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: projectDialog.open()
                     }
                 }
 
