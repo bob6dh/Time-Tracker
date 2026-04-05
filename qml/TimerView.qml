@@ -43,6 +43,7 @@ Item {
 
                             Item {
                                 required property var modelData
+                                required property int index
                                 width: summaryRow.width / 3
                                 height: summaryCol.implicitHeight
 
