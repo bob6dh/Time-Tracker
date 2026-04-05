@@ -345,18 +345,21 @@ Item {
                     Item {
                         id: blockItem
                         required property int index
+                        required property int projIdx
+                        required property int start
+                        required property int end
 
-                        x: timeLabelW + model.projIdx * colWidth + 3
-                        y: minuteToY(model.start)
+                        x: timeLabelW + projIdx * colWidth + 3
+                        y: minuteToY(start)
                         width:  colWidth - 6
-                        height: Math.max(8, (model.end - model.start) * minuteH)
+                        height: Math.max(8, (end - start) * minuteH)
                         z: 2   // above column backgrounds
 
                         property bool isSelected:       false
                         property bool isResizingTop:    false
                         property bool isResizingBottom: false
-                        property color blockColor: projectMeta.length > model.projIdx
-                                                   ? projectMeta[model.projIdx].color : "#888"
+                        property color blockColor: projectMeta.length > projIdx
+                                                   ? projectMeta[projIdx].color : "#888"
 
                         // Main block rectangle
                         Rectangle {
@@ -372,7 +375,7 @@ Item {
                                 anchors { left: parent.left; leftMargin: 3
                                           top: parent.top; topMargin: 2 }
                                 width: parent.width - (blockItem.isSelected ? 22 : 6)
-                                text: fmtMin(model.start) + " – " + fmtMin(model.end)
+                                text: fmtMin(blockItem.start) + " – " + fmtMin(blockItem.end)
                                 font.pixelSize: 8
                                 color: "white"
                                 elide: Text.ElideRight
@@ -397,7 +400,7 @@ Item {
                                     z: 5
                                     onClicked: {
                                         var mp = modifiedProjects
-                                        mp[model.projIdx] = true
+                                        mp[blockItem.projIdx] = true
                                         modifiedProjects = mp
                                         sessionModel.remove(blockItem.index)
                                     }
@@ -427,8 +430,8 @@ Item {
 
                             onPressed: function(mouse) {
                                 var pt = mapToItem(gridContent, mouse.x, mouse.y)
-                                pressContentY       = pt.y
-                                pressStart          = model.start
+                                pressContentY           = pt.y
+                                pressStart              = blockItem.start
                                 blockItem.isResizingTop = true
                             }
                             onPositionChanged: function(mouse) {
@@ -436,12 +439,12 @@ Item {
                                 var pt    = mapToItem(gridContent, mouse.x, mouse.y)
                                 var delta = pt.y - pressContentY
                                 var newS  = snapMin(pressStart + delta / minuteH)
-                                newS = clampMin(newS, startHour * 60, model.end - snapMins)
+                                newS = clampMin(newS, startHour * 60, blockItem.end - snapMins)
                                 sessionModel.setProperty(blockItem.index, "start", newS)
                             }
                             onReleased: {
                                 var mp = modifiedProjects
-                                mp[model.projIdx] = true
+                                mp[blockItem.projIdx] = true
                                 modifiedProjects = mp
                                 blockItem.isResizingTop = false
                             }
@@ -460,8 +463,8 @@ Item {
 
                             onPressed: function(mouse) {
                                 var pt = mapToItem(gridContent, mouse.x, mouse.y)
-                                pressContentY          = pt.y
-                                pressEnd               = model.end
+                                pressContentY              = pt.y
+                                pressEnd                   = blockItem.end
                                 blockItem.isResizingBottom = true
                             }
                             onPositionChanged: function(mouse) {
@@ -469,12 +472,12 @@ Item {
                                 var pt    = mapToItem(gridContent, mouse.x, mouse.y)
                                 var delta = pt.y - pressContentY
                                 var newE  = snapMin(pressEnd + delta / minuteH)
-                                newE = clampMin(newE, model.start + snapMins, endHour * 60)
+                                newE = clampMin(newE, blockItem.start + snapMins, endHour * 60)
                                 sessionModel.setProperty(blockItem.index, "end", newE)
                             }
                             onReleased: {
                                 var mp = modifiedProjects
-                                mp[model.projIdx] = true
+                                mp[blockItem.projIdx] = true
                                 modifiedProjects = mp
                                 blockItem.isResizingBottom = false
                             }
