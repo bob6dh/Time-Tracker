@@ -483,23 +483,60 @@ Item {
                 Repeater {
                     model: projectMeta.length
                     Item {
+                        id: colHeader
+                        required property int index
                         width: colWidth; height: headerH
                         property var pm: projectMeta[index] || {name:"", color:"#ccc"}
+
+                        // Hover detection for the whole header cell
+                        MouseArea {
+                            id: colHeaderMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
+                        }
+
                         Rectangle {
                             anchors.fill: parent
                             anchors.leftMargin: 1
-                            color: pm.color
+                            color: colHeader.pm.color
                             opacity: 0.15
                         }
                         Label {
                             anchors.centerIn: parent
-                            width: colWidth - 8
-                            text: pm.name
+                            width: colWidth - (colHeaderMa.containsMouse ? 22 : 8)
+                            text: colHeader.pm.name
                             font.pixelSize: 11
                             font.bold: true
-                            color: pm.color
+                            color: colHeader.pm.color
                             elide: Text.ElideRight
                             horizontalAlignment: Text.AlignHCenter
+                        }
+
+                        // × delete button — visible on hover
+                        Rectangle {
+                            visible: colHeaderMa.containsMouse
+                            anchors { right: parent.right; rightMargin: 3
+                                      verticalCenter: parent.verticalCenter }
+                            width: 16; height: 16; radius: 8
+                            color: delColMa.containsMouse ? "#dc2626" : "#ef4444"
+                            z: 4
+                            Label {
+                                anchors.centerIn: parent
+                                text: "\u00d7"
+                                font.pixelSize: 11; font.bold: true
+                                color: "white"
+                            }
+                            MouseArea {
+                                id: delColMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    removeProjectConfirm.projectName = colHeader.pm.name
+                                    removeProjectConfirm.open()
+                                }
+                            }
                         }
                     }
                 }
@@ -848,6 +885,78 @@ Item {
                 MouseArea { id: saveMa; anchors.fill: parent
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: saveAll() }
+            }
+        }
+    }
+
+    // ── Remove project from day — confirmation popup ─────────────
+    Popup {
+        id: removeProjectConfirm
+        anchors.centerIn: parent
+        width: 280
+        padding: 0
+        modal: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string projectName: ""
+
+        background: Rectangle {
+            radius: 8; color: "#ffffff"
+            border.color: "#e5e7eb"; border.width: 1
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 0
+
+            Label {
+                text: "Remove from this day?"
+                font.pixelSize: 16; font.bold: true
+                color: "#1f2937"
+                Layout.topMargin: 20; Layout.leftMargin: 16; Layout.rightMargin: 16
+                Layout.bottomMargin: 8
+            }
+            Label {
+                text: "\u201c" + removeProjectConfirm.projectName + "\u201d and all its time blocks for this day will be deleted."
+                font.pixelSize: 13; color: "#6b7280"
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+                Layout.leftMargin: 16; Layout.rightMargin: 16
+                Layout.bottomMargin: 20
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16; Layout.rightMargin: 16; Layout.bottomMargin: 16
+                spacing: 8
+
+                Rectangle {
+                    Layout.fillWidth: true; height: 38; radius: 4
+                    color: rmCancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
+                    border.color: "#e5e7eb"; border.width: 1
+                    Label { anchors.centerIn: parent; text: "Cancel"
+                            font.pixelSize: 13; color: "#6b7280" }
+                    MouseArea {
+                        id: rmCancelMa; anchors.fill: parent
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: removeProjectConfirm.close()
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true; height: 38; radius: 4
+                    color: rmConfirmMa.containsMouse ? "#b91c1c" : "#dc2626"
+                    Label { anchors.centerIn: parent; text: "Remove"
+                            font.pixelSize: 13; color: "white" }
+                    MouseArea {
+                        id: rmConfirmMa; anchors.fill: parent
+                        hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            backend.removeProjectFromDay(root.dayKey, removeProjectConfirm.projectName)
+                            root.loadData()
+                            removeProjectConfirm.close()
+                        }
+                    }
+                }
             }
         }
     }

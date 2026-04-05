@@ -585,6 +585,21 @@ class TimeTrackerBackend(QObject):
         return list(self._data["dailyLogs"].keys())
 
     @Slot(str, str)
+    def removeProjectFromDay(self, day_key: str, project_name: str):
+        logs = self._data["dailyLogs"]
+        if day_key in logs and project_name in logs[day_key]:
+            del logs[day_key][project_name]
+            if not logs[day_key]:          # remove empty day entry
+                del logs[day_key]
+            save_data(self._data)
+            self._history_model.refresh()
+            self._day_detail_model.load_day(day_key)
+            if day_key == date.today().isoformat():
+                self._project_model.refresh()
+                self.hasTodayLogsChanged.emit()
+            self.summaryChanged.emit()
+
+    @Slot(str, str)
     def addProjectToDay(self, day_key: str, project_name: str):
         logs = self._data["dailyLogs"]
         if day_key not in logs:
