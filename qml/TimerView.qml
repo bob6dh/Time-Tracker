@@ -43,18 +43,8 @@ Item {
 
                             Item {
                                 required property var modelData
-                                required property int index
                                 width: summaryRow.width / 3
                                 height: summaryCol.implicitHeight
-
-                                // Divider between cells (not before the first)
-                                Rectangle {
-                                    visible: index > 0
-                                    x: 0; y: 4
-                                    width: 1
-                                    height: parent.height - 8
-                                    color: "#374151"
-                                }
 
                                 ColumnLayout {
                                     id: summaryCol
