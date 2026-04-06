@@ -16,8 +16,10 @@ Window {
     flags: Qt.Dialog | Qt.WindowStaysOnTopHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint
 
     property int secondsLeft: 0
+    property string projectName: ""
 
     function showWindow() {
+        projectName = backend.activeProject
         secondsLeft = backend.inactivityTimeoutSecs
         // Centre on the primary screen
         x = Screen.virtualX + Math.round((Screen.width  - width)  / 2)
@@ -82,7 +84,7 @@ Window {
             color: "#6b7280"
         }
         Label {
-            text: (backend.activeProject || "") + "?"
+            text: checkInWindow.projectName + "?"
             font.pixelSize: 22
             font.bold: true
             color: "#1f2937"
