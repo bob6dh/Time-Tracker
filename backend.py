@@ -557,8 +557,10 @@ class TimeTrackerBackend(QObject):
         self.activeProjectChanged.emit()
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
+        self.summaryChanged.emit()
         self._project_model.refresh()
         self._history_model.refresh()
+        self.hasTodayLogsChanged.emit()
 
     @Slot()
     def stopTimer(self):
