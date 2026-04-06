@@ -15,6 +15,7 @@ def main():
 
     backend = TimeTrackerBackend()
     engine.rootContext().setContextProperty("backend", backend)
+    app.aboutToQuit.connect(backend.saveAndStop)
 
     qml_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qml")
     engine.addImportPath(qml_dir)
