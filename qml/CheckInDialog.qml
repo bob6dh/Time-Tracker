@@ -11,6 +11,7 @@ Dialog {
     closePolicy: Popup.NoAutoClose
 
     property int secondsLeft: 30 * 60
+    property string projectName: ""
 
     function formatCountdown(secs) {
         var m = Math.floor(secs / 60)
@@ -19,6 +20,7 @@ Dialog {
     }
 
     onOpened: {
+        projectName = backend.activeProject
         secondsLeft = backend.inactivityTimeoutSecs
         countdownTimer.start()
     }
@@ -60,7 +62,7 @@ Dialog {
         }
 
         Label {
-            text: backend.activeProject + "?"
+            text: checkInDialog.projectName + "?"
             font.pixelSize: 22
             font.bold: true
             color: "#2563eb"
