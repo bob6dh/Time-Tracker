@@ -387,6 +387,9 @@ class TimeTrackerBackend(QObject):
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
+        # Restore any active session that was running when the app last closed
+        self._restore_active_session()
+
     # ── Properties ──
 
     @Property(str, notify=activeProjectChanged)
@@ -544,6 +547,7 @@ class TimeTrackerBackend(QObject):
         self._session_start = time.time()
         self._last_checkin = time.time()
         self._elapsed = 0
+        self._save_active_session()
         self.activeProjectChanged.emit()
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
@@ -559,6 +563,7 @@ class TimeTrackerBackend(QObject):
         self._elapsed = 0
         self._last_checkin = None
         self._checkin_shown_at = None
+        self._clear_active_session()
         self.activeProjectChanged.emit()
         self.elapsedChanged.emit()
         self.elapsedTextChanged.emit()
@@ -898,6 +903,51 @@ class TimeTrackerBackend(QObject):
             self.jsonTransferDone.emit(f"Import failed: {e}", False)
 
     # ── Internal ──
+
+    def _save_active_session(self):
+        self._data["activeSession"] = {
+            "project": self._active_project,
+            "startTime": self._session_start,
+        }
+        save_data(self._data)
+
+    def _clear_active_session(self):
+        self._data.pop("activeSession", None)
+        save_data(self._data)
+
+    def _restore_active_session(self):
+        session = self._data.get("activeSession")
+        if not session:
+            return
+        project = session.get("project")
+        start_time = session.get("startTime")
+        if not project or not start_time:
+            return
+        # Verify the project still exists and is not archived
+        known = [
+            _proj_name(p) for p in self._data["projects"]
+            if not (isinstance(p, dict) and p.get("archived", False))
+        ]
+        if project not in known:
+            self._data.pop("activeSession", None)
+            save_data(self._data)
+            return
+        self._active_project = project
+        self._session_start = start_time
+        self._last_checkin = time.time()
+        self._elapsed = int(time.time() - start_time)
+
+    @Slot()
+    def saveAndStop(self):
+        """Save the active session time to disk without clearing session state.
+        Called on app exit so in-progress time is not lost.
+        """
+        if self._active_project and self._session_start:
+            self._log_time(int(time.time() - self._session_start))
+            # Update the saved session start to now so the logged block
+            # is not double-counted if the app is reopened and resumed.
+            self._session_start = time.time()
+            self._save_active_session()
 
     def _log_time(self, secs):
         if not self._active_project or secs <= 0:
