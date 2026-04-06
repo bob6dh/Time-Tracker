@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import calendar
 from datetime import datetime, date, timedelta
@@ -13,7 +14,12 @@ from PySide6.QtCore import (
     Qt, QModelIndex, QByteArray,
 )
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tracker_data.json")
+if getattr(sys, "frozen", False):
+    _app_dir = os.path.dirname(sys.executable)
+else:
+    _app_dir = os.path.dirname(os.path.abspath(__file__))
+
+DATA_FILE = os.path.join(_app_dir, "tracker_data.json")
 
 
 def _proj_name(p):
