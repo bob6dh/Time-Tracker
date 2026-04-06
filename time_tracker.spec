@@ -7,12 +7,28 @@
 # To produce a single .exe instead, set onefile=True in the EXE/COLLECT
 # section (see comment below).
 
+import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-# Collect PySide6 QML plugin data so QtQuick / QtQuick.Controls work.
-pyside6_qml_data = collect_data_files("PySide6", includes=["*.qml", "qmldir"])
+# Collect QML data only for the modules this app actually uses:
+#   QtQuick, QtQuick.Controls, QtQuick.Layouts, QtQuick.Dialogs, QtQuick.Window
+# Avoids pulling in QML files for WebEngine, Multimedia, 3D, etc.
+_qml_includes = [
+    "*/QtQuick/*",
+    "*/QtQuick.Controls/*",
+    "*/QtQuick/Controls/*",
+    "*/QtQuick/Layouts/*",
+    "*/QtQuick/Dialogs/*",
+    "*/QtQml/*",
+    "qmldir",
+    "*.qmltypes",
+]
+pyside6_qml_data = collect_data_files(
+    "PySide6",
+    includes=["Qt/qml/QtQuick*/**", "Qt/qml/QtQml*/**", "Qt/qml/QtQuick*", "Qt/qml/QtQml*", "qmldir"],
+)
 
 a = Analysis(
     ["main.py"],
@@ -32,13 +48,70 @@ a = Analysis(
         "PySide6.QtQml",
         "PySide6.QtQuick",
         "PySide6.QtQuickControls2",
-        "PySide6.QtNetwork",
         *collect_submodules("openpyxl"),
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        # Unused Qt modules — prevents their binaries from being bundled.
+        # WebEngine is especially large (50+ MB on its own).
+        "PySide6.QtWebEngine",
+        "PySide6.QtWebEngineCore",
+        "PySide6.QtWebEngineWidgets",
+        "PySide6.QtWebEngineQuick",
+        "PySide6.QtMultimedia",
+        "PySide6.QtMultimediaWidgets",
+        "PySide6.QtMultimediaQuick",
+        "PySide6.Qt3DCore",
+        "PySide6.Qt3DRender",
+        "PySide6.Qt3DInput",
+        "PySide6.Qt3DLogic",
+        "PySide6.Qt3DAnimation",
+        "PySide6.Qt3DExtras",
+        "PySide6.QtCharts",
+        "PySide6.QtDataVisualization",
+        "PySide6.QtLocation",
+        "PySide6.QtPositioning",
+        "PySide6.QtBluetooth",
+        "PySide6.QtNfc",
+        "PySide6.QtSensors",
+        "PySide6.QtWebSockets",
+        "PySide6.QtWebChannel",
+        "PySide6.QtSerialPort",
+        "PySide6.QtSerialBus",
+        "PySide6.QtSql",
+        "PySide6.QtTest",
+        "PySide6.QtPdf",
+        "PySide6.QtPdfWidgets",
+        "PySide6.QtSvg",
+        "PySide6.QtSvgWidgets",
+        "PySide6.QtXml",
+        "PySide6.QtConcurrent",
+        "PySide6.QtHelp",
+        "PySide6.QtDesigner",
+        "PySide6.QtUiTools",
+        "PySide6.QtWidgets",
+        "PySide6.QtOpenGLWidgets",
+        "PySide6.QtPrintSupport",
+        "PySide6.QtScxml",
+        "PySide6.QtStateMachine",
+        "PySide6.QtRemoteObjects",
+        "PySide6.QtQuick3D",
+        "PySide6.QtVirtualKeyboard",
+        "PySide6.QtNetwork",
+        # Unused stdlib modules
+        "tkinter",
+        "unittest",
+        "xmlrpc",
+        "ftplib",
+        "imaplib",
+        "smtplib",
+        "telnetlib",
+        "turtle",
+        "turtledemo",
+        "msilib",
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -58,7 +131,7 @@ exe = EXE(
     name="TimeTracker",
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
     console=False,          # No terminal window.
     disable_windowed_traceback=False,
@@ -74,7 +147,7 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=False,
+    strip=True,
     upx=True,
     upx_exclude=[],
     name="TimeTracker",
