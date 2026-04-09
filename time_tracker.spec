@@ -50,6 +50,7 @@ a = Analysis(
         "PySide6.QtQml",
         "PySide6.QtQuick",
         "PySide6.QtQuickControls2",
+        "PySide6.QtQuickDialogs2",     # backs QtQuick.Dialogs used in ReportView/SettingsView
         *collect_submodules("openpyxl"),
     ],
     hookspath=[],
