@@ -14,7 +14,7 @@ def _app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtCore import QUrl
 
@@ -31,6 +31,7 @@ def main():
 
     app = QGuiApplication(sys.argv)
     app.setApplicationName("Time Tracker")
+    app.setWindowIcon(QIcon(os.path.join(_app_dir(), "time_img.ico")))
 
     engine = QQmlApplicationEngine()
 

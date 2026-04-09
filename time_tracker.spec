@@ -37,6 +37,8 @@ a = Analysis(
     datas=[
         # Bundle the app's own QML files.
         ("qml", "qml"),
+        # App icon — placed in the root of the bundle so _app_dir() can find it.
+        ("time_img.ico", "."),
         # PySide6 QML module files (QtQuick, QtQuick.Controls, etc.)
         *pyside6_qml_data,
     ],
@@ -129,6 +131,7 @@ exe = EXE(
     # a.datas,
     exclude_binaries=True,  # Set to False for one-file mode.
     name="TimeTracker",
+    icon="time_img.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
