@@ -8,9 +8,15 @@
 # section (see comment below).
 
 import os
+import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
+
+# strip is a Linux/macOS-only tool; UPX can trigger antivirus on Windows.
+_is_windows = sys.platform == "win32"
+_strip = not _is_windows
+_upx   = not _is_windows
 
 # Collect QML data only for the modules this app actually uses:
 #   QtQuick, QtQuick.Controls, QtQuick.Layouts, QtQuick.Dialogs, QtQuick.Window
@@ -134,8 +140,8 @@ exe = EXE(
     icon="time_img.ico",
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    strip=_strip,
+    upx=_upx,
     console=False,          # No terminal window.
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -150,8 +156,8 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=True,
-    upx=True,
+    strip=_strip,
+    upx=_upx,
     upx_exclude=[],
     name="TimeTracker",
 )
