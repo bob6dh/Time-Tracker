@@ -101,7 +101,6 @@ a = Analysis(
         "PySide6.QtRemoteObjects",
         "PySide6.QtQuick3D",
         "PySide6.QtVirtualKeyboard",
-        "PySide6.QtNetwork",
         # Unused stdlib modules
         "tkinter",
         "unittest",
