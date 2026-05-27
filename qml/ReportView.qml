@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtCore
 
 Item {
     id: reportView
@@ -237,7 +238,9 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 fileDialog.defaultSuffix = "xlsx"
-                                fileDialog.currentFile = "file:///report-" + exportDialog.yearMonth() + ".xlsx"
+                                var home = StandardPaths.writableLocation(StandardPaths.HomeLocation)
+                                fileDialog.currentFolder = home
+                                fileDialog.currentFile = home + "/report-" + exportDialog.yearMonth() + ".xlsx"
                                 fileDialog.open()
                             }
                         }

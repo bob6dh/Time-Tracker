@@ -36,9 +36,9 @@ Item {
 
                         Repeater {
                             model: [
-                                { label: "Today",      value: backend.todayTotal },
-                                { label: "This Week",  value: backend.weekTotal  },
-                                { label: "This Month", value: backend.monthTotal  }
+                                { label: "Today",      value: backend.todayTotal,  billable: backend.todayBillable  },
+                                { label: "This Week",  value: backend.weekTotal,   billable: backend.weekBillable   },
+                                { label: "This Month", value: backend.monthTotal,  billable: backend.monthBillable  }
                             ]
 
                             Item {
@@ -57,6 +57,12 @@ Item {
                                         font.pixelSize: 18
                                         font.bold: true
                                         color: "#f9fafb"
+                                    }
+                                    Label {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.billable + " billable"
+                                        font.pixelSize: 11
+                                        color: "#4ade80"
                                     }
                                     Label {
                                         Layout.alignment: Qt.AlignHCenter

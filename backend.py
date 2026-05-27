@@ -11,7 +11,7 @@ from openpyxl.utils import get_column_letter
 
 from PySide6.QtCore import (
     QObject, Property, Signal, Slot, QTimer, QAbstractListModel,
-    Qt, QModelIndex, QByteArray,
+    Qt, QModelIndex, QByteArray, QUrl,
 )
 
 if getattr(sys, "frozen", False):
@@ -20,6 +20,12 @@ else:
     _app_dir = os.path.dirname(os.path.abspath(__file__))
 
 DATA_FILE = os.path.join(_app_dir, "tracker_data.json")
+
+
+def _url_to_path(url_str: str) -> str:
+    """Convert a file:// URL from QML FileDialog to a local filesystem path."""
+    path = QUrl(str(url_str)).toLocalFile()
+    return path if path else str(url_str)
 
 
 def _proj_name(p):
@@ -491,6 +497,60 @@ class TimeTrackerBackend(QObject):
             secs += int(time.time() - self._session_start)
         return fmt_time(secs) if secs > 0 else "0m"
 
+    def _billable_project_names(self) -> set:
+        names = set()
+        for p in self._data["projects"]:
+            if isinstance(p, dict):
+                if p.get("billable", True):
+                    names.add(p["name"])
+            else:
+                names.add(str(p))
+        return names
+
+    @Property(str, notify=summaryChanged)
+    def todayBillable(self):
+        billable = self._billable_project_names()
+        today = date.today().isoformat()
+        secs = sum(
+            v["seconds"] for k, v in self._data["dailyLogs"].get(today, {}).items()
+            if k in billable
+        )
+        if self._active_project and self._session_start and self._active_project in billable:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=summaryChanged)
+    def weekBillable(self):
+        billable = self._billable_project_names()
+        today = date.today()
+        monday = today - timedelta(days=today.weekday())
+        secs = 0
+        for i in range(7):
+            dk = (monday + timedelta(days=i)).isoformat()
+            secs += sum(
+                v["seconds"] for k, v in self._data["dailyLogs"].get(dk, {}).items()
+                if k in billable
+            )
+        if self._active_project and self._session_start and self._active_project in billable:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=summaryChanged)
+    def monthBillable(self):
+        billable = self._billable_project_names()
+        today = date.today()
+        days_in_month = calendar.monthrange(today.year, today.month)[1]
+        secs = 0
+        for d in range(1, days_in_month + 1):
+            dk = date(today.year, today.month, d).isoformat()
+            secs += sum(
+                v["seconds"] for k, v in self._data["dailyLogs"].get(dk, {}).items()
+                if k in billable
+            )
+        if self._active_project and self._session_start and self._active_project in billable:
+            secs += int(time.time() - self._session_start)
+        return fmt_time(secs) if secs > 0 else "0m"
+
     # ── Slots ──
 
     @Slot(str, str, bool)
@@ -745,9 +805,7 @@ class TimeTrackerBackend(QObject):
             file_path:  Absolute path (may start with "file://")
         """
         try:
-            # Normalise file:// URI from QML FileDialog
-            if file_path.startswith("file://"):
-                file_path = file_path[7:]
+            file_path = _url_to_path(file_path)
             if not file_path.endswith(".xlsx"):
                 file_path += ".xlsx"
 
@@ -870,10 +928,7 @@ class TimeTrackerBackend(QObject):
     @Slot(str)
     def exportJson(self, file_path: str):
         try:
-            if file_path.startswith("file:///"):
-                file_path = file_path[8:]  # Windows: strip file:/// → C:/...
-            elif file_path.startswith("file://"):
-                file_path = file_path[7:]  # Unix: strip file:// → /home/...
+            file_path = _url_to_path(file_path)
             if not file_path.endswith(".json"):
                 file_path += ".json"
             with open(file_path, "w") as f:
@@ -885,10 +940,7 @@ class TimeTrackerBackend(QObject):
     @Slot(str)
     def importJson(self, file_path: str):
         try:
-            if file_path.startswith("file:///"):
-                file_path = file_path[8:]
-            elif file_path.startswith("file://"):
-                file_path = file_path[7:]
+            file_path = _url_to_path(file_path)
             with open(file_path, "r") as f:
                 new_data = json.load(f)
             if "dailyLogs" not in new_data:
