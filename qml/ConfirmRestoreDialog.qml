@@ -12,6 +12,7 @@ Dialog {
 
     property string backupPath: ""
     property string backupLabel: ""
+    property real backupMtime: 0
 
     background: Rectangle {
         radius: 8
@@ -92,7 +93,7 @@ Dialog {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        backend.restoreBackup(confirmRestoreDialog.backupPath)
+                        backend.restoreBackup(confirmRestoreDialog.backupPath, confirmRestoreDialog.backupMtime)
                         confirmRestoreDialog.close()
                     }
                 }

@@ -1377,37 +1377,58 @@ class TimeTrackerBackend(QObject):
     @Slot(result="QVariantList")
     def getAvailableBackups(self):
         """List every backup on disk (rolling, daily, pre-import, pre-restore),
-        newest first by actual file modification time."""
+        newest first by actual file modification time. Each row's `mtime` lets
+        restoreBackup() detect if the file changed after this list was
+        fetched — the rolling `.bak` file in particular gets overwritten by
+        *every* save (e.g. a background idle/check-in auto-stop while this
+        list is on screen), so restoring by path alone could otherwise
+        silently restore a different point than the one the user selected."""
         rows = []
         if os.path.exists(BAK_FILE):
-            rows.append((os.path.getmtime(BAK_FILE), {
+            mtime = os.path.getmtime(BAK_FILE)
+            rows.append((mtime, {
                 "path": BAK_FILE,
                 "label": "Most recent save",
                 "kind": "rolling",
+                "mtime": mtime,
             }))
         for snap_date, path in _daily_backups():
-            rows.append((os.path.getmtime(path), {
+            mtime = os.path.getmtime(path)
+            rows.append((mtime, {
                 "path": path,
                 "label": snap_date.strftime("%a, %b %d, %Y"),
                 "kind": "daily",
+                "mtime": mtime,
             }))
         for stamp, path in _named_backups("pre-import"):
-            rows.append((os.path.getmtime(path), {
+            mtime = os.path.getmtime(path)
+            rows.append((mtime, {
                 "path": path,
                 "label": "Before import — " + stamp.strftime("%b %d, %Y %I:%M %p"),
                 "kind": "pre-import",
+                "mtime": mtime,
             }))
         for stamp, path in _named_backups("pre-restore"):
-            rows.append((os.path.getmtime(path), {
+            mtime = os.path.getmtime(path)
+            rows.append((mtime, {
                 "path": path,
                 "label": "Before restore — " + stamp.strftime("%b %d, %Y %I:%M %p"),
                 "kind": "pre-restore",
+                "mtime": mtime,
             }))
         rows.sort(key=lambda r: r[0], reverse=True)
         return [r[1] for r in rows]
 
-    @Slot(str)
-    def restoreBackup(self, path: str):
+    @Slot(str, float)
+    def restoreBackup(self, path: str, expected_mtime: float):
+        try:
+            actual_mtime = os.path.getmtime(path)
+        except OSError:
+            actual_mtime = None
+        if actual_mtime is None or abs(actual_mtime - expected_mtime) > 0.001:
+            self.jsonTransferDone.emit(
+                "Restore failed: this backup changed since the list was loaded — refresh and try again", False)
+            return
         data = _try_load(path)
         if data is None:
             self.jsonTransferDone.emit("Restore failed: backup file is missing or invalid", False)

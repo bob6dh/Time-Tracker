@@ -519,6 +519,7 @@ Item {
                                     onClicked: {
                                         confirmRestoreDialog.backupPath = modelData.path
                                         confirmRestoreDialog.backupLabel = modelData.label
+                                        confirmRestoreDialog.backupMtime = modelData.mtime
                                         confirmRestoreDialog.open()
                                     }
                                 }
