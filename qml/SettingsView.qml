@@ -8,12 +8,21 @@ Item {
 
     property var archivedProjects: []
     property bool showArchived: false
+    property var availableBackups: []
+    property bool showBackups: false
 
     function refreshArchived() {
         archivedProjects = backend.getArchivedProjects()
     }
 
-    Component.onCompleted: refreshArchived()
+    function refreshBackups() {
+        availableBackups = backend.getAvailableBackups()
+    }
+
+    Component.onCompleted: {
+        refreshArchived()
+        refreshBackups()
+    }
 
     Connections {
         target: backend
@@ -22,6 +31,7 @@ Item {
             toastLabel.text = message
             toast.success = success
             toastAnim.restart()
+            if (success) settingsRoot.refreshBackups()
         }
     }
 
@@ -114,7 +124,7 @@ Item {
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
-        visible: !settingsRoot.showArchived
+        visible: !settingsRoot.showArchived && !settingsRoot.showBackups
 
         Flickable {
             Layout.fillWidth: true
@@ -177,6 +187,39 @@ Item {
                         Label { text: "Import data (.json)"; font.pixelSize: 14; color: "#f9fafb" } }
                     MouseArea { id: importMa; anchors.fill: parent; hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor; onClicked: importDialog.open() }
+                }
+
+                // Restore backup nav row
+                Rectangle {
+                    Layout.fillWidth: true; height: 44; radius: 6
+                    color: backupsNavMa.containsMouse ? "#f9fafb" : "#ffffff"
+                    border.color: "#e5e7eb"; border.width: 1
+                    Layout.bottomMargin: 16
+
+                    RowLayout {
+                        anchors { fill: parent; margins: 12 }
+                        spacing: 8
+                        Label {
+                            text: "Restore Backup"
+                            font.pixelSize: 14; color: "#374151"
+                            Layout.fillWidth: true
+                        }
+                        Rectangle {
+                            visible: settingsRoot.availableBackups.length > 0
+                            implicitWidth: backupsCountLbl.implicitWidth + 12
+                            height: 20; radius: 10
+                            color: "#e5e7eb"
+                            Label { id: backupsCountLbl; anchors.centerIn: parent
+                                    text: settingsRoot.availableBackups.length
+                                    font.pixelSize: 11; color: "#6b7280" }
+                        }
+                        Label { text: "›"; font.pixelSize: 18; color: "#9ca3af" }
+                    }
+                    MouseArea {
+                        id: backupsNavMa; anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { settingsRoot.refreshBackups(); settingsRoot.showBackups = true }
+                    }
                 }
 
                 // Archived projects nav row
@@ -332,6 +375,125 @@ Item {
                                     id: reinstateMa; anchors.fill: parent; hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: backend.reinstateProject(modelData.name)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item { height: 8 }
+            }
+        }
+    }
+
+    // ── Restore backup sub-page ─────────────────────────────────────
+    ConfirmRestoreDialog { id: confirmRestoreDialog }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+        visible: settingsRoot.showBackups
+
+        // Back link
+        Label {
+            text: "← Back"
+            font.pixelSize: 14
+            color: backupsBackMa.containsMouse ? "#1f2937" : "#6b7280"
+            Layout.bottomMargin: 4
+            MouseArea {
+                id: backupsBackMa; anchors.fill: parent; hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: settingsRoot.showBackups = false
+            }
+        }
+
+        Label {
+            text: "Restore Backup"
+            font.pixelSize: 20; font.bold: true; color: "#1f2937"
+            Layout.bottomMargin: 4
+        }
+        Label {
+            text: "Restoring replaces all current data. Your current data is snapshotted first, so restoring can itself be undone."
+            font.pixelSize: 13; color: "#6b7280"
+            wrapMode: Text.WordWrap
+            Layout.fillWidth: true
+            Layout.bottomMargin: 16
+        }
+
+        // Empty state
+        Label {
+            visible: settingsRoot.availableBackups.length === 0
+            text: "No backups yet"
+            font.pixelSize: 14; color: "#9ca3af"
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 20
+        }
+
+        // Backup list
+        Flickable {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: settingsRoot.availableBackups.length > 0
+            contentHeight: backupsCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            ColumnLayout {
+                id: backupsCol
+                width: parent.width
+                spacing: 8
+
+                Repeater {
+                    model: settingsRoot.availableBackups
+
+                    Rectangle {
+                        required property var modelData
+                        required property int index
+
+                        Layout.fillWidth: true
+                        height: backupRow.implicitHeight + 20
+                        radius: 6
+                        color: "#ffffff"
+                        border.color: "#e5e7eb"; border.width: 1
+
+                        RowLayout {
+                            id: backupRow
+                            anchors { left: parent.left; right: parent.right
+                                      verticalCenter: parent.verticalCenter; margins: 14 }
+                            spacing: 10
+
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 2
+                                Label {
+                                    text: modelData.label
+                                    font.pixelSize: 14; font.bold: true; color: "#374151"
+                                    elide: Text.ElideRight; Layout.fillWidth: true
+                                }
+                                Label {
+                                    text: modelData.kind === "rolling" ? "Previous save"
+                                        : modelData.kind === "daily" ? "Daily snapshot"
+                                        : modelData.kind === "pre-import" ? "Safety snapshot"
+                                        : "Safety snapshot"
+                                    font.pixelSize: 11; color: "#9ca3af"
+                                }
+                            }
+
+                            Rectangle {
+                                implicitWidth: restoreLbl.implicitWidth + 20
+                                height: 34; radius: 4
+                                color: restoreMa.containsMouse ? "#374151" : "#1f2937"
+                                Label {
+                                    id: restoreLbl; anchors.centerIn: parent
+                                    text: "Restore"; font.pixelSize: 13; color: "white"
+                                }
+                                MouseArea {
+                                    id: restoreMa; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        confirmRestoreDialog.backupPath = modelData.path
+                                        confirmRestoreDialog.backupLabel = modelData.label
+                                        confirmRestoreDialog.open()
+                                    }
                                 }
                             }
                         }

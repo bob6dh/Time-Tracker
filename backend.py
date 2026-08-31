@@ -127,10 +127,28 @@ def _snapshot_daily_backup():
         _prune_old_backups()
 
 
-def snapshot_pre_import_backup():
-    """Explicit undo point before an import overwrites all in-memory data."""
+def snapshot_before_overwrite(reason):
+    """Explicit undo point before some action wholesale-replaces all in-memory
+    data (import, restore-from-backup). `reason` (e.g. "pre-import",
+    "pre-restore") becomes part of the backup filename."""
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    _copy_into_backup_dir(f"tracker_data_pre-import_{stamp}.json")
+    _copy_into_backup_dir(f"tracker_data_{reason}_{stamp}.json")
+
+
+def _named_backups(reason):
+    """Return (datetime, path) pairs for tracker_data_{reason}_<timestamp>.json
+    snapshots written by snapshot_before_overwrite(reason), newest first."""
+    if not os.path.isdir(BACKUP_DIR):
+        return []
+    prefix = f"tracker_data_{reason}_"
+    found = []
+    for path in glob.glob(os.path.join(BACKUP_DIR, f"{prefix}*.json")):
+        stem = os.path.basename(path)[len(prefix):-len(".json")]
+        try:
+            found.append((datetime.strptime(stem, "%Y-%m-%d_%H%M%S"), path))
+        except ValueError:
+            continue
+    return sorted(found, reverse=True)
 
 
 def _replace_with_retry(src, dst, attempts=5, delay=0.05):
@@ -1262,7 +1280,7 @@ class TimeTrackerBackend(QObject):
             if "dailyLogs" not in new_data:
                 self.jsonTransferDone.emit("Import failed: not a valid tracker data file", False)
                 return
-            snapshot_pre_import_backup()
+            snapshot_before_overwrite("pre-import")
             # Migrate legacy string-format projects
             new_data["projects"] = [
                 p if isinstance(p, dict)
@@ -1281,6 +1299,65 @@ class TimeTrackerBackend(QObject):
             self.jsonTransferDone.emit(f"Imported {os.path.basename(file_path)}", True)
         except Exception as e:
             self.jsonTransferDone.emit(f"Import failed: {e}", False)
+
+    @Slot(result="QVariantList")
+    def getAvailableBackups(self):
+        """List every backup on disk (rolling, daily, pre-import, pre-restore),
+        newest first by actual file modification time."""
+        rows = []
+        if os.path.exists(BAK_FILE):
+            rows.append((os.path.getmtime(BAK_FILE), {
+                "path": BAK_FILE,
+                "label": "Most recent save",
+                "kind": "rolling",
+            }))
+        for snap_date, path in _daily_backups():
+            rows.append((os.path.getmtime(path), {
+                "path": path,
+                "label": snap_date.strftime("%a, %b %d, %Y"),
+                "kind": "daily",
+            }))
+        for stamp, path in _named_backups("pre-import"):
+            rows.append((os.path.getmtime(path), {
+                "path": path,
+                "label": "Before import — " + stamp.strftime("%b %d, %Y %I:%M %p"),
+                "kind": "pre-import",
+            }))
+        for stamp, path in _named_backups("pre-restore"):
+            rows.append((os.path.getmtime(path), {
+                "path": path,
+                "label": "Before restore — " + stamp.strftime("%b %d, %Y %I:%M %p"),
+                "kind": "pre-restore",
+            }))
+        rows.sort(key=lambda r: r[0], reverse=True)
+        return [r[1] for r in rows]
+
+    @Slot(str)
+    def restoreBackup(self, path: str):
+        data = _try_load(path)
+        if data is None:
+            self.jsonTransferDone.emit("Restore failed: backup file is missing or invalid", False)
+            return
+        # Safety net: snapshot the current state before replacing it, so
+        # restoring is itself undoable (same reasoning as the pre-import snapshot).
+        snapshot_before_overwrite("pre-restore")
+        if self._active_project:
+            self.stopTimer()
+        data["projects"] = [
+            p if isinstance(p, dict)
+            else {"name": p, "billingCode": "", "billable": True}
+            for p in data.get("projects", [])
+        ]
+        data.setdefault("tasks", [])
+        self._data = data
+        save_data(self._data)
+        self._project_model.refresh()
+        self._history_model.refresh()
+        self._task_model.refresh()
+        self.completedTasksChanged.emit()
+        self.hasTodayLogsChanged.emit()
+        self.summaryChanged.emit()
+        self.jsonTransferDone.emit("Restored from backup", True)
 
     # ── Internal ──
 
