@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Qt.labs.platform as Platform
 
 ApplicationWindow {
     id: root
@@ -15,6 +16,14 @@ ApplicationWindow {
     property string currentView: "timer"
     property string selectedDay: ""
 
+    // Closing the window minimizes to tray instead of quitting — the timer,
+    // check-ins, idle detection etc. all keep running in the background.
+    // Quit is only reachable from the tray menu.
+    onClosing: function(close) {
+        close.accepted = false
+        root.hide()
+    }
+
     CheckInWindow {
         id: checkInWindow
     }
@@ -27,6 +36,44 @@ ApplicationWindow {
         target: backend
         function onShowCheckIn() { checkInWindow.showWindow() }
         function onShowEod() { eodDialog.open() }
+    }
+
+    Platform.SystemTrayIcon {
+        id: trayIcon
+        visible: true
+        icon.source: "../time_img.ico"
+        tooltip: backend.activeProject !== ""
+                 ? "Time Tracker — " + backend.activeProject + " (" + backend.elapsedText + ")"
+                 : "Time Tracker"
+
+        onActivated: function(reason) {
+            if (reason === Platform.SystemTrayIcon.Trigger || reason === Platform.SystemTrayIcon.DoubleClick) {
+                if (root.visible) {
+                    root.hide()
+                } else {
+                    root.show()
+                    root.raise()
+                    root.requestActivate()
+                }
+            }
+        }
+
+        menu: Platform.Menu {
+            Platform.MenuItem {
+                text: "Show Time Tracker"
+                onTriggered: { root.show(); root.raise(); root.requestActivate() }
+            }
+            Platform.MenuItem {
+                text: "Stop Timer"
+                visible: backend.activeProject !== ""
+                onTriggered: backend.stopTimer()
+            }
+            Platform.MenuSeparator {}
+            Platform.MenuItem {
+                text: "Quit"
+                onTriggered: Qt.quit()
+            }
+        }
     }
 
     ColumnLayout {
