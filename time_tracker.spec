@@ -33,7 +33,11 @@ _qml_includes = [
 ]
 pyside6_qml_data = collect_data_files(
     "PySide6",
-    includes=["Qt/qml/QtQuick*/**", "Qt/qml/QtQml*/**", "Qt/qml/QtQuick*", "Qt/qml/QtQml*", "qmldir"],
+    includes=[
+        "Qt/qml/QtQuick*/**", "Qt/qml/QtQml*/**", "Qt/qml/QtQuick*", "Qt/qml/QtQml*",
+        "Qt/qml/Qt/labs/platform/**",   # backs the Qt.labs.platform SystemTrayIcon used in Main.qml
+        "qmldir",
+    ],
 )
 
 a = Analysis(
