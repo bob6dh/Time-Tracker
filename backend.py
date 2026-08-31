@@ -1,3 +1,4 @@
+import csv
 import glob
 import json
 import os
@@ -47,7 +48,7 @@ def _try_load(path):
     if not path or not os.path.exists(path):
         return None
     try:
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return None
@@ -164,8 +165,8 @@ def save_data(data):
             pass
         _snapshot_daily_backup()
     tmp_path = DATA_FILE + ".tmp"
-    with open(tmp_path, "w") as f:
-        json.dump(data, f, indent=2)
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
     _replace_with_retry(tmp_path, DATA_FILE)  # atomic on Windows and POSIX, with OneDrive-lock retry
 
 
@@ -1078,6 +1079,27 @@ class TimeTrackerBackend(QObject):
     def refreshReport(self):
         self._load_report()
 
+    def _collect_monthly_rows(self, year, month):
+        """Return (month_name, rows, total_hours) for a given year/month, where
+        rows is a list of (date_label, project, hours, description) tuples —
+        the shared data both the Excel and CSV monthly exports render."""
+        month_name = datetime(year, month, 1).strftime("%B %Y")
+        days_in_month = calendar.monthrange(year, month)[1]
+        rows = []
+        total_hours = 0.0
+        for d in range(1, days_in_month + 1):
+            day_key = f"{year}-{month:02d}-{d:02d}"
+            log = self._data["dailyLogs"].get(day_key, {})
+            for proj, info in sorted(log.items()):
+                secs = info.get("seconds", 0)
+                # Round to nearest 10 minutes, express as decimal hours
+                hours = round(secs / 600) * 10 / 60
+                desc = info.get("description", "")
+                date_label = datetime(year, month, d).strftime("%a, %b %d")
+                rows.append((date_label, proj, hours, desc))
+                total_hours += hours
+        return month_name, rows, total_hours
+
     @Slot(str, str)
     def exportMonthlyReport(self, year_month, file_path):
         """Export a monthly report to an Excel file.
@@ -1092,23 +1114,7 @@ class TimeTrackerBackend(QObject):
                 file_path += ".xlsx"
 
             year, month = int(year_month[:4]), int(year_month[5:7])
-            month_name = datetime(year, month, 1).strftime("%B %Y")
-            days_in_month = calendar.monthrange(year, month)[1]
-
-            # Collect (date, project, hours, description) rows
-            rows = []
-            total_hours = 0.0
-            for d in range(1, days_in_month + 1):
-                day_key = f"{year}-{month:02d}-{d:02d}"
-                log = self._data["dailyLogs"].get(day_key, {})
-                for proj, info in sorted(log.items()):
-                    secs = info.get("seconds", 0)
-                    # Round to nearest 10 minutes, express as decimal hours
-                    hours = round(secs / 600) * 10 / 60
-                    desc = info.get("description", "")
-                    date_label = datetime(year, month, d).strftime("%a, %b %d")
-                    rows.append((date_label, proj, hours, desc))
-                    total_hours += hours
+            month_name, rows, total_hours = self._collect_monthly_rows(year, month)
 
             wb = openpyxl.Workbook()
             ws = wb.active
@@ -1207,14 +1213,42 @@ class TimeTrackerBackend(QObject):
         except Exception as e:
             self.exportDone.emit(f"Export failed: {e}", False)
 
+    @Slot(str, str)
+    def exportMonthlyReportCsv(self, year_month, file_path):
+        """Export a monthly report to a CSV file — same rows as exportMonthlyReport,
+        without the Excel formatting."""
+        try:
+            file_path = _url_to_path(file_path)
+            if not file_path.endswith(".csv"):
+                file_path += ".csv"
+
+            year, month = int(year_month[:4]), int(year_month[5:7])
+            month_name, rows, total_hours = self._collect_monthly_rows(year, month)
+
+            with open(file_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow([f"Monthly Report — {month_name}"])
+                writer.writerow([])
+                writer.writerow(["Date", "Project", "Hours", "Description"])
+                for date_lbl, proj, hrs, desc in rows:
+                    writer.writerow([date_lbl, proj, f"{hrs:.2f}", desc])
+                if rows:
+                    writer.writerow([])
+                    writer.writerow(["Total", "", f"{total_hours:.2f}", ""])
+
+            self.exportDone.emit(f"Exported to {os.path.basename(file_path)}", True)
+
+        except Exception as e:
+            self.exportDone.emit(f"Export failed: {e}", False)
+
     @Slot(str)
     def exportJson(self, file_path: str):
         try:
             file_path = _url_to_path(file_path)
             if not file_path.endswith(".json"):
                 file_path += ".json"
-            with open(file_path, "w") as f:
-                json.dump(self._data, f, indent=2)
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(self._data, f, indent=2, ensure_ascii=False)
             self.jsonTransferDone.emit(f"Exported to {os.path.basename(file_path)}", True)
         except Exception as e:
             self.jsonTransferDone.emit(f"Export failed: {e}", False)
@@ -1223,7 +1257,7 @@ class TimeTrackerBackend(QObject):
     def importJson(self, file_path: str):
         try:
             file_path = _url_to_path(file_path)
-            with open(file_path, "r") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 new_data = json.load(f)
             if "dailyLogs" not in new_data:
                 self.jsonTransferDone.emit("Import failed: not a valid tracker data file", False)

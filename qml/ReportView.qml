@@ -59,6 +59,7 @@ Item {
 
         property int selectedYear: new Date().getFullYear()
         property int selectedMonth: new Date().getMonth() + 1
+        property string selectedFormat: "xlsx"   // "xlsx" or "csv"
 
         function yearMonth() {
             return selectedYear + "-" + (selectedMonth < 10 ? "0" + selectedMonth : selectedMonth)
@@ -94,11 +95,11 @@ Item {
                     spacing: 3
 
                     Label {
-                        text: "Export to Excel"
+                        text: "Export Report"
                         font.pixelSize: 18; font.bold: true; color: "#1f2937"
                     }
                     Label {
-                        text: "Choose a month to export as an .xlsx report."
+                        text: "Choose a month and format to export."
                         font.pixelSize: 13; color: "#6b7280"
                     }
                 }
@@ -203,6 +204,51 @@ Item {
                     }
                 }
 
+                // Format row
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+
+                    Label {
+                        text: "Format"; font.pixelSize: 13; color: "#6b7280"
+                        Layout.preferredWidth: 46
+                    }
+
+                    Row {
+                        spacing: 5
+
+                        Repeater {
+                            model: [
+                                { key: "xlsx", label: "Excel (.xlsx)" },
+                                { key: "csv",  label: "CSV (.csv)" }
+                            ]
+
+                            Rectangle {
+                                required property var modelData
+                                property bool selected: exportDialog.selectedFormat === modelData.key
+
+                                width: formatLbl.implicitWidth + 20; height: 30; radius: 6
+                                color: selected ? "#dbeafe" : (formatMa.containsMouse ? "#f0f7ff" : "#ffffff")
+                                border.color: selected ? "#93c5fd" : "#e5e7eb"
+                                border.width: 1
+
+                                Label {
+                                    id: formatLbl
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    font.pixelSize: 12; font.bold: selected
+                                    color: selected ? "#1d4ed8" : "#374151"
+                                }
+
+                                MouseArea {
+                                    id: formatMa; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: exportDialog.selectedFormat = modelData.key
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Buttons
                 RowLayout {
                     Layout.fillWidth: true; Layout.topMargin: 4; spacing: 8
@@ -237,10 +283,12 @@ Item {
                             id: exportBtnMa; anchors.fill: parent; hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                fileDialog.defaultSuffix = "xlsx"
+                                var ext = exportDialog.selectedFormat
+                                fileDialog.nameFilters = ext === "csv" ? ["CSV files (*.csv)"] : ["Excel files (*.xlsx)"]
+                                fileDialog.defaultSuffix = ext
                                 var home = StandardPaths.writableLocation(StandardPaths.HomeLocation)
                                 fileDialog.currentFolder = home
-                                fileDialog.currentFile = home + "/report-" + exportDialog.yearMonth() + ".xlsx"
+                                fileDialog.currentFile = home + "/report-" + exportDialog.yearMonth() + "." + ext
                                 fileDialog.open()
                             }
                         }
@@ -253,14 +301,18 @@ Item {
     // ── File save dialog ─────────────────────────────────────────────
     FileDialog {
         id: fileDialog
-        title: "Save Excel Report"
+        title: "Save Report"
         fileMode: FileDialog.SaveFile
         nameFilters: ["Excel files (*.xlsx)"]
         defaultSuffix: "xlsx"
 
         onAccepted: {
             exportDialog.close()
-            backend.exportMonthlyReport(exportDialog.yearMonth(), selectedFile.toString())
+            if (exportDialog.selectedFormat === "csv") {
+                backend.exportMonthlyReportCsv(exportDialog.yearMonth(), selectedFile.toString())
+            } else {
+                backend.exportMonthlyReport(exportDialog.yearMonth(), selectedFile.toString())
+            }
         }
     }
 
@@ -521,7 +573,7 @@ Item {
                             color: "white"
                         }
                         Label {
-                            text: "Export to Excel"
+                            text: "Export Report"
                             font.pixelSize: 14
                             font.bold: true
                             color: "white"
