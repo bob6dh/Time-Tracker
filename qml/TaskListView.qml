@@ -69,6 +69,8 @@ Item {
                         required property string project
                         required property bool   isActive
                         required property string timeText
+                        required property string dueDate
+                        required property string dueDateLabel
                         required property int    index
 
                         Layout.fillWidth: true
@@ -105,10 +107,35 @@ Item {
                                 }
                             }
 
-                            // Done check — just left of delete
+                            // Edit — just left of delete
+                            Label {
+                                id: editBtn
+                                anchors.right: deleteBtn.left
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "✎"
+                                font.pixelSize: 14
+                                color: editMa.containsMouse ? "#2563eb" : "#d1d5db"
+
+                                MouseArea {
+                                    id: editMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        taskDialog.taskId = taskId
+                                        taskDialog.initialTitle = title
+                                        taskDialog.initialProject = project
+                                        taskDialog.initialDueDate = dueDate
+                                        taskDialog.open()
+                                    }
+                                }
+                            }
+
+                            // Done check — just left of edit
                             Rectangle {
                                 id: doneBtn
-                                anchors.right: deleteBtn.left
+                                anchors.right: editBtn.left
                                 anchors.rightMargin: 10
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 26; height: 26; radius: 13
@@ -235,6 +262,14 @@ Item {
                                         color: "#9ca3af"
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
+
+                                    Label {
+                                        visible: dueDateLabel !== ""
+                                        text: "· Due " + dueDateLabel
+                                        font.pixelSize: 11
+                                        color: "#f59e0b"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
                                 }
                             }
                         }
@@ -306,7 +341,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: taskDialog.open()
+                        onClicked: { taskDialog.taskId = ""; taskDialog.open() }
                     }
                 }
 

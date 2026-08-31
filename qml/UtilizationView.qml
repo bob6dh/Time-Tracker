@@ -12,27 +12,10 @@ Item {
     property real ptoHours: 0
     property real holidayHours: 0
 
-    // Default: start = first day of current month, end = today
-    property int startYear:  new Date().getFullYear()
-    property int startMonth: new Date().getMonth() + 1
-    property int startDay:   1
-    property int endYear:    new Date().getFullYear()
-    property int endMonth:   new Date().getMonth() + 1
-    property int endDay:     new Date().getDate()
-
-    readonly property var monthNames: ["Jan","Feb","Mar","Apr","May","Jun",
-                                       "Jul","Aug","Sep","Oct","Nov","Dec"]
-
-    function daysInMonth(y, m) { return new Date(y, m, 0).getDate() }
-    function clampDay(y, m, d) { return Math.min(d, daysInMonth(y, m)) }
-    function pad2(n) { return n < 10 ? "0" + n : "" + n }
-    function startDateStr() { return startYear + "-" + pad2(startMonth) + "-" + pad2(startDay) }
-    function endDateStr()   { return endYear   + "-" + pad2(endMonth)   + "-" + pad2(endDay)   }
-
     function calculate() {
         errorLabel.text = ""
         utilResult = null
-        var r = backend.calculateUtilization(startDateStr(), endDateStr(), ptoHours, holidayHours)
+        var r = backend.calculateUtilization(fromPicker.dateStr(), toPicker.dateStr(), ptoHours, holidayHours)
         if (r && r.error) { errorLabel.text = r.error } else { utilResult = r }
     }
 
@@ -102,80 +85,10 @@ Item {
                         font.capitalization: Font.AllUppercase
                     }
 
-                    // Year row
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Label { text: "Year"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
-                        Rectangle {
-                            Layout.fillWidth: true; height: 36; radius: 6
-                            color: "#f9fafb"; border.color: "#e5e7eb"; border.width: 1
-                            RowLayout {
-                                anchors.fill: parent; anchors.margins: 4; spacing: 0
-                                Label {
-                                    Layout.fillWidth: true; text: utilRoot.startYear
-                                    font.pixelSize: 14; color: "#1f2937"
-                                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                                }
-                                ColumnLayout {
-                                    spacing: 0
-                                    Label { text: "▲"; font.pixelSize: 9; color: sYearUp.containsMouse ? "#1f2937" : "#9ca3af"
-                                        MouseArea { id: sYearUp; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: utilRoot.startYear++ } }
-                                    Label { text: "▼"; font.pixelSize: 9; color: sYearDown.containsMouse ? "#1f2937" : "#9ca3af"
-                                        MouseArea { id: sYearDown; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: if (utilRoot.startYear > 2000) utilRoot.startYear-- } }
-                                }
-                            }
-                        }
-                    }
-
-                    // Month grid row
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8; Layout.bottomMargin: 2
-                        Label { text: "Month"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
-                        Grid {
-                            columns: 4; spacing: 4
-                            Repeater {
-                                model: utilRoot.monthNames
-                                Rectangle {
-                                    required property string modelData
-                                    required property int index
-                                    property bool sel: utilRoot.startMonth === index + 1
-                                    width: 52; height: 28; radius: 4
-                                    color: sel ? "#1f2937" : (sMonthMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                                    border.color: sel ? "transparent" : "#e5e7eb"; border.width: 1
-                                    Label { anchors.centerIn: parent; text: modelData; font.pixelSize: 12; font.bold: sel
-                                            color: sel ? "#ffffff" : "#374151" }
-                                    MouseArea { id: sMonthMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { utilRoot.startMonth = index + 1
-                                                             utilRoot.startDay = utilRoot.clampDay(utilRoot.startYear, utilRoot.startMonth, utilRoot.startDay) } }
-                                }
-                            }
-                        }
-                    }
-
-                    // Day grid row
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8; Layout.bottomMargin: 2
-                        Label { text: "Day"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
-                        Grid {
-                            columns: 7; spacing: 4
-                            Repeater {
-                                model: utilRoot.daysInMonth(utilRoot.startYear, utilRoot.startMonth)
-                                Rectangle {
-                                    required property int index
-                                    property int dayNum: index + 1
-                                    property bool sel: utilRoot.startDay === dayNum
-                                    width: 32; height: 26; radius: 4
-                                    color: sel ? "#1f2937" : (sDayMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                                    border.color: sel ? "transparent" : "#e5e7eb"; border.width: 1
-                                    Label { anchors.centerIn: parent; text: dayNum; font.pixelSize: 12; font.bold: sel
-                                            color: sel ? "#ffffff" : "#374151" }
-                                    MouseArea { id: sDayMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: utilRoot.startDay = dayNum }
-                                }
-                            }
-                        }
+                    DatePicker {
+                        id: fromPicker
+                        Layout.fillWidth: true
+                        day: 1   // default: first day of the current month
                     }
                 }
             }
@@ -198,80 +111,10 @@ Item {
                         font.capitalization: Font.AllUppercase
                     }
 
-                    // Year row
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Label { text: "Year"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
-                        Rectangle {
-                            Layout.fillWidth: true; height: 36; radius: 6
-                            color: "#f9fafb"; border.color: "#e5e7eb"; border.width: 1
-                            RowLayout {
-                                anchors.fill: parent; anchors.margins: 4; spacing: 0
-                                Label {
-                                    Layout.fillWidth: true; text: utilRoot.endYear
-                                    font.pixelSize: 14; color: "#1f2937"
-                                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                                }
-                                ColumnLayout {
-                                    spacing: 0
-                                    Label { text: "▲"; font.pixelSize: 9; color: eYearUp.containsMouse ? "#1f2937" : "#9ca3af"
-                                        MouseArea { id: eYearUp; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: utilRoot.endYear++ } }
-                                    Label { text: "▼"; font.pixelSize: 9; color: eYearDown.containsMouse ? "#1f2937" : "#9ca3af"
-                                        MouseArea { id: eYearDown; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                    onClicked: if (utilRoot.endYear > 2000) utilRoot.endYear-- } }
-                                }
-                            }
-                        }
-                    }
-
-                    // Month grid row
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8; Layout.bottomMargin: 2
-                        Label { text: "Month"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
-                        Grid {
-                            columns: 4; spacing: 4
-                            Repeater {
-                                model: utilRoot.monthNames
-                                Rectangle {
-                                    required property string modelData
-                                    required property int index
-                                    property bool sel: utilRoot.endMonth === index + 1
-                                    width: 52; height: 28; radius: 4
-                                    color: sel ? "#1f2937" : (eMonthMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                                    border.color: sel ? "transparent" : "#e5e7eb"; border.width: 1
-                                    Label { anchors.centerIn: parent; text: modelData; font.pixelSize: 12; font.bold: sel
-                                            color: sel ? "#ffffff" : "#374151" }
-                                    MouseArea { id: eMonthMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: { utilRoot.endMonth = index + 1
-                                                             utilRoot.endDay = utilRoot.clampDay(utilRoot.endYear, utilRoot.endMonth, utilRoot.endDay) } }
-                                }
-                            }
-                        }
-                    }
-
-                    // Day grid row
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8; Layout.bottomMargin: 2
-                        Label { text: "Day"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
-                        Grid {
-                            columns: 7; spacing: 4
-                            Repeater {
-                                model: utilRoot.daysInMonth(utilRoot.endYear, utilRoot.endMonth)
-                                Rectangle {
-                                    required property int index
-                                    property int dayNum: index + 1
-                                    property bool sel: utilRoot.endDay === dayNum
-                                    width: 32; height: 26; radius: 4
-                                    color: sel ? "#1f2937" : (eDayMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                                    border.color: sel ? "transparent" : "#e5e7eb"; border.width: 1
-                                    Label { anchors.centerIn: parent; text: dayNum; font.pixelSize: 12; font.bold: sel
-                                            color: sel ? "#ffffff" : "#374151" }
-                                    MouseArea { id: eDayMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                                onClicked: utilRoot.endDay = dayNum }
-                                }
-                            }
-                        }
+                    DatePicker {
+                        id: toPicker
+                        Layout.fillWidth: true
+                        // defaults to today
                     }
                 }
             }

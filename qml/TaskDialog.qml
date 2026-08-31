@@ -10,11 +10,31 @@ Dialog {
     anchors.centerIn: parent
     closePolicy: Popup.NoAutoClose
 
-    // Reset fields each time the dialog opens
+    // Empty taskId = create mode. To edit, set taskId/initialTitle/
+    // initialProject/initialDueDate before calling open().
+    property string taskId: ""
+    property string initialTitle: ""
+    property string initialProject: ""
+    property string initialDueDate: ""   // "" or "YYYY-MM-DD"
+    property bool hasDueDate: false
+
+    // Reset/populate fields each time the dialog opens
     onAboutToShow: {
-        titleField.text = ""
         projectCombo.model = backend.getProjectNames()
-        projectCombo.currentIndex = projectCombo.model.length > 0 ? 0 : -1
+        if (taskDialog.taskId === "") {
+            titleField.text = ""
+            projectCombo.currentIndex = projectCombo.model.length > 0 ? 0 : -1
+            taskDialog.hasDueDate = false
+            dueDatePicker.year = new Date().getFullYear()
+            dueDatePicker.month = new Date().getMonth() + 1
+            dueDatePicker.day = new Date().getDate()
+        } else {
+            titleField.text = taskDialog.initialTitle
+            var idx = projectCombo.model.indexOf(taskDialog.initialProject)
+            projectCombo.currentIndex = idx >= 0 ? idx : (projectCombo.model.length > 0 ? 0 : -1)
+            taskDialog.hasDueDate = taskDialog.initialDueDate !== ""
+            if (taskDialog.hasDueDate) dueDatePicker.setFromString(taskDialog.initialDueDate)
+        }
         titleField.forceActiveFocus()
     }
 
@@ -30,7 +50,7 @@ Dialog {
 
         // Header
         Label {
-            text: "New Task"
+            text: taskDialog.taskId === "" ? "New Task" : "Edit Task"
             font.pixelSize: 18
             font.bold: true
             color: "#1f2937"
@@ -71,7 +91,7 @@ Dialog {
                 }
 
                 Keys.onReturnPressed: {
-                    if (taskDialog.canCreate) createTask()
+                    if (taskDialog.canCreate) submit()
                 }
             }
         }
@@ -98,6 +118,47 @@ Dialog {
             wrapMode: Text.WordWrap
             Layout.fillWidth: true
             Layout.bottomMargin: 14
+        }
+
+        // ── Due Date ─────────────────────────────────────────────
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.bottomMargin: taskDialog.hasDueDate ? 12 : 18
+            spacing: 0
+
+            Label {
+                text: "Due Date"
+                font.pixelSize: 12
+                color: "#6b7280"
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                width: 40; height: 22; radius: 11
+                color: taskDialog.hasDueDate ? "#2563eb" : "#d1d5db"
+                Behavior on color { ColorAnimation { duration: 120 } }
+
+                Rectangle {
+                    width: 16; height: 16; radius: 8
+                    color: "white"
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: taskDialog.hasDueDate ? parent.width - width - 3 : 3
+                    Behavior on x { NumberAnimation { duration: 120 } }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: taskDialog.hasDueDate = !taskDialog.hasDueDate
+                }
+            }
+        }
+
+        DatePicker {
+            id: dueDatePicker
+            Layout.fillWidth: true
+            Layout.bottomMargin: 18
+            visible: taskDialog.hasDueDate
         }
 
         // ── Buttons ───────────────────────────────────────────────
@@ -134,7 +195,7 @@ Dialog {
 
                 Label {
                     anchors.centerIn: parent
-                    text: "Create Task"
+                    text: taskDialog.taskId === "" ? "Create Task" : "Save Changes"
                     font.pixelSize: 14
                     color: "white"
                 }
@@ -143,7 +204,7 @@ Dialog {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: taskDialog.canCreate ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: if (taskDialog.canCreate) createTask()
+                    onClicked: if (taskDialog.canCreate) submit()
                 }
             }
         }
@@ -151,8 +212,13 @@ Dialog {
 
     property bool canCreate: titleField.text.trim() !== "" && projectCombo.currentIndex >= 0
 
-    function createTask() {
-        backend.addTask(titleField.text.trim(), projectCombo.currentText)
+    function submit() {
+        var due = taskDialog.hasDueDate ? dueDatePicker.dateStr() : ""
+        if (taskDialog.taskId === "") {
+            backend.addTask(titleField.text.trim(), projectCombo.currentText, due)
+        } else {
+            backend.editTask(taskDialog.taskId, titleField.text.trim(), projectCombo.currentText, due)
+        }
         taskDialog.close()
     }
 }
