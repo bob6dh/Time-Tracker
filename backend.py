@@ -1,4 +1,5 @@
 import csv
+import ctypes
 import glob
 import json
 import os
@@ -94,6 +95,7 @@ def load_data():
     data.setdefault("tasks", [])
     for t in data["tasks"]:
         t.setdefault("dueDate", None)
+    data.setdefault("idleTimeout", 10)
     return data
 
 
@@ -188,6 +190,29 @@ def save_data(data):
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     _replace_with_retry(tmp_path, DATA_FILE)  # atomic on Windows and POSIX, with OneDrive-lock retry
+
+
+class _LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+
+def _idle_seconds():
+    """Seconds since the last system-wide keyboard/mouse input, via the Windows
+    GetLastInputInfo API. Returns 0 on non-Windows platforms (and if the API
+    call fails), so idle detection is simply inert there rather than erroring —
+    this app is Windows-only in practice, but `python main.py` should still run
+    for development on other platforms."""
+    if sys.platform != "win32":
+        return 0
+    info = _LASTINPUTINFO()
+    info.cbSize = ctypes.sizeof(_LASTINPUTINFO)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+        return 0
+    # Both GetTickCount() and dwTime are 32-bit tick counts (ms since boot) that
+    # wrap around every ~49.7 days; masking to 32 bits keeps the subtraction
+    # correct across a wraparound instead of producing a huge/negative value.
+    millis_idle = (ctypes.windll.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF
+    return millis_idle / 1000.0
 
 
 def fmt_time(seconds):
@@ -576,6 +601,7 @@ class TimeTrackerBackend(QObject):
     elapsedChanged = Signal()
     elapsedTextChanged = Signal()
     checkInIntervalChanged = Signal()
+    idleTimeoutChanged = Signal()
     showCheckIn = Signal()
     showEod = Signal()
     hasTodayLogsChanged = Signal()
@@ -636,6 +662,10 @@ class TimeTrackerBackend(QObject):
     @Property(int, notify=checkInIntervalChanged)
     def checkInInterval(self):
         return self._data["checkInInterval"]
+
+    @Property(int, notify=idleTimeoutChanged)
+    def idleTimeout(self):
+        return self._data["idleTimeout"]
 
     @Property(bool, notify=hasTodayLogsChanged)
     def hasTodayLogs(self):
@@ -864,8 +894,15 @@ class TimeTrackerBackend(QObject):
 
     @Slot()
     def stopTimer(self):
+        self._stop()
+
+    def _stop(self, trim_seconds=0):
+        """Stop the active session. `trim_seconds` (used by idle auto-stop)
+        excludes that many trailing seconds from what gets logged, so idle
+        time at the keyboard isn't credited to the project/task."""
         if self._active_project and self._session_start:
-            self._log_time(int(time.time() - self._session_start))
+            elapsed = int(time.time() - self._session_start)
+            self._log_time(max(0, elapsed - trim_seconds))
         self._active_project = None
         self._active_task_id = None
         self._session_start = None
@@ -975,6 +1012,12 @@ class TimeTrackerBackend(QObject):
         self._data["checkInInterval"] = minutes
         save_data(self._data)
         self.checkInIntervalChanged.emit()
+
+    @Slot(int)
+    def setIdleTimeout(self, minutes):
+        self._data["idleTimeout"] = minutes
+        save_data(self._data)
+        self.idleTimeoutChanged.emit()
 
     @Slot()
     def clearHistory(self):
@@ -1515,6 +1558,14 @@ class TimeTrackerBackend(QObject):
         return base
 
     def _tick(self):
+        # Idle detection — auto-stop and exclude the idle tail from what's logged,
+        # so time spent away from the keyboard isn't credited to the project/task.
+        if self._active_project and self._session_start:
+            idle = _idle_seconds()
+            if idle >= self._data["idleTimeout"] * 60:
+                self._stop(trim_seconds=int(idle))
+                return
+
         if self._active_project and self._session_start:
             self._elapsed = int(time.time() - self._session_start)
             self.elapsedChanged.emit()
