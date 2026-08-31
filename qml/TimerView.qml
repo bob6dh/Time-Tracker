@@ -104,6 +104,12 @@ Item {
                             color: "#1f2937"
                         }
                         Label {
+                            visible: backend.activeTaskTitle !== ""
+                            text: "on: " + backend.activeTaskTitle
+                            font.pixelSize: 13
+                            color: "#6b7280"
+                        }
+                        Label {
                             text: backend.elapsedText
                             font.pixelSize: 36
                             font.family: "Consolas"
