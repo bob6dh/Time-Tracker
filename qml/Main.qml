@@ -49,7 +49,7 @@ ApplicationWindow {
             Layout.bottomMargin: 10
 
             Repeater {
-                model: ["timer", "history", "reports", "settings"]
+                model: ["timer", "tasks", "history", "reports", "settings"]
 
                 Rectangle {
                     required property string modelData
@@ -87,12 +87,15 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             currentIndex: root.currentView === "timer" ? 0
-                        : root.currentView === "history" ? 1
-                        : root.currentView === "reports" ? 2 : 3
+                        : root.currentView === "tasks" ? 1
+                        : root.currentView === "history" ? 2
+                        : root.currentView === "reports" ? 3 : 4
 
             TimerView {}
 
-            // History + Day detail share index 1
+            TaskListView {}
+
+            // History + Day detail share index 2
             Item {
                 StackLayout {
                     anchors.fill: parent

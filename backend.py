@@ -1,8 +1,11 @@
+import glob
 import json
 import os
+import shutil
 import sys
 import time
 import calendar
+import uuid
 from datetime import datetime, date, timedelta
 
 import openpyxl
@@ -20,6 +23,9 @@ else:
     _app_dir = os.path.dirname(os.path.abspath(__file__))
 
 DATA_FILE = os.path.join(_app_dir, "tracker_data.json")
+BAK_FILE = DATA_FILE + ".bak"
+BACKUP_DIR = os.path.join(_app_dir, "backups")
+BACKUP_RETENTION_DAYS = 30
 
 
 def _url_to_path(url_str: str) -> str:
@@ -33,26 +39,134 @@ def _proj_name(p):
     return p["name"] if isinstance(p, dict) else p
 
 
-def load_data():
-    if os.path.exists(DATA_FILE):
+def _is_valid_data(data):
+    return isinstance(data, dict) and "dailyLogs" in data and "projects" in data
+
+
+def _try_load(path):
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+    except Exception:
+        return None
+    return data if _is_valid_data(data) else None
+
+
+def _daily_backups():
+    """Return (date, path) pairs for dated snapshots in BACKUP_DIR, newest first.
+
+    Excludes pre-import snapshots, whose stems don't parse as a plain ISO date.
+    """
+    if not os.path.isdir(BACKUP_DIR):
+        return []
+    found = []
+    for path in glob.glob(os.path.join(BACKUP_DIR, "tracker_data_*.json")):
+        stem = os.path.basename(path)[len("tracker_data_"):-len(".json")]
         try:
-            with open(DATA_FILE, "r") as f:
-                data = json.load(f)
-            # Migrate legacy string-format projects to dict format
-            data["projects"] = [
-                p if isinstance(p, dict)
-                else {"name": p, "billingCode": "", "billable": True}
-                for p in data.get("projects", [])
-            ]
-            return data
-        except Exception:
-            pass
-    return {"projects": [], "checkInInterval": 30, "dailyLogs": {}}
+            found.append((date.fromisoformat(stem), path))
+        except ValueError:
+            continue
+    return sorted(found, reverse=True)
+
+
+def load_data():
+    # A corrupted/missing main file falls back to the rolling backup, then the
+    # most recent daily snapshot, before ever resetting to an empty dataset —
+    # otherwise the next save would permanently overwrite recoverable data.
+    data = _try_load(DATA_FILE)
+    if data is None:
+        data = _try_load(BAK_FILE)
+    if data is None:
+        backups = _daily_backups()
+        if backups:
+            data = _try_load(backups[0][1])
+    if data is None:
+        data = {"projects": [], "checkInInterval": 30, "dailyLogs": {}}
+    # Migrate legacy string-format projects to dict format
+    data["projects"] = [
+        p if isinstance(p, dict)
+        else {"name": p, "billingCode": "", "billable": True}
+        for p in data.get("projects", [])
+    ]
+    data.setdefault("tasks", [])
+    return data
+
+
+def _prune_old_backups():
+    cutoff = date.today() - timedelta(days=BACKUP_RETENTION_DAYS)
+    for snap_date, path in _daily_backups():
+        if snap_date < cutoff:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def _copy_into_backup_dir(filename):
+    """Best-effort copy of the current DATA_FILE into BACKUP_DIR under the given
+    name. Returns True if a copy was written."""
+    if not os.path.exists(DATA_FILE):
+        return False
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    try:
+        shutil.copyfile(DATA_FILE, os.path.join(BACKUP_DIR, filename))
+        return True
+    except OSError:
+        return False
+
+
+def _snapshot_daily_backup():
+    """Copy today's pre-save state into BACKUP_DIR, once per calendar day."""
+    filename = f"tracker_data_{date.today().isoformat()}.json"
+    if os.path.exists(os.path.join(BACKUP_DIR, filename)):
+        return
+    if _copy_into_backup_dir(filename):
+        _prune_old_backups()
+
+
+def snapshot_pre_import_backup():
+    """Explicit undo point before an import overwrites all in-memory data."""
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    _copy_into_backup_dir(f"tracker_data_pre-import_{stamp}.json")
+
+
+def _replace_with_retry(src, dst, attempts=5, delay=0.05):
+    """os.replace() can transiently raise WinError 5 (Access is denied) when dst
+    lives in a cloud-synced folder (OneDrive, Dropbox, ...) that briefly locks the
+    file for scanning/upload right after a write. Retry with backoff before
+    falling back to a plain (non-atomic) copy so a save is never lost.
+
+    This runs synchronously on the Qt main thread (called from save_data(), which
+    every mutating Slot uses), so the backoff is kept short — worst case ~0.75s
+    total across 5 attempts — to avoid noticeably freezing the UI."""
+    last_err = None
+    for i in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError as e:
+            last_err = e
+            time.sleep(delay * (i + 1))
+    try:
+        shutil.copyfile(src, dst)
+        os.remove(src)
+    except OSError:
+        raise last_err
 
 
 def save_data(data):
-    with open(DATA_FILE, "w") as f:
+    if os.path.exists(DATA_FILE):
+        try:
+            shutil.copyfile(DATA_FILE, BAK_FILE)
+        except OSError:
+            pass
+        _snapshot_daily_backup()
+    tmp_path = DATA_FILE + ".tmp"
+    with open(tmp_path, "w") as f:
         json.dump(data, f, indent=2)
+    _replace_with_retry(tmp_path, DATA_FILE)  # atomic on Windows and POSIX, with OneDrive-lock retry
 
 
 def fmt_time(seconds):
@@ -128,6 +242,71 @@ class ProjectListModel(QAbstractListModel):
     def refresh(self):
         self.beginResetModel()
         self.endResetModel()
+
+
+# ── Task list model ──────────────────────────────────────────────
+
+
+class TaskListModel(QAbstractListModel):
+    IdRole = Qt.UserRole + 1
+    TitleRole = Qt.UserRole + 2
+    ProjectRole = Qt.UserRole + 3
+    IsActiveRole = Qt.UserRole + 4
+    TimeRole = Qt.UserRole + 5
+
+    def __init__(self, backend, parent=None):
+        super().__init__(parent)
+        self._backend = backend
+
+    def roleNames(self):
+        return {
+            self.IdRole: QByteArray(b"taskId"),
+            self.TitleRole: QByteArray(b"title"),
+            self.ProjectRole: QByteArray(b"project"),
+            self.IsActiveRole: QByteArray(b"isActive"),
+            self.TimeRole: QByteArray(b"timeText"),
+        }
+
+    def _visible(self):
+        """Return pending (not-done) tasks for the Tasks tab."""
+        return [t for t in self._backend._data.get("tasks", []) if not t.get("done")]
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._visible())
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        task = self._visible()[index.row()]
+        if role == self.IdRole:
+            return task["id"]
+        if role == self.TitleRole:
+            return task["title"]
+        if role == self.ProjectRole:
+            return task["project"]
+        if role == self.IsActiveRole:
+            return self._backend._active_task_id == task["id"]
+        if role == self.TimeRole:
+            return fmt_time(self._backend._task_seconds(task["id"]))
+        return None
+
+    def refresh(self):
+        self.beginResetModel()
+        self.endResetModel()
+
+    def refresh_active_time(self):
+        """Update just the active task's row (its live elapsed time), without
+        resetting the whole list — used on every timer tick so the Tasks tab
+        doesn't re-scan and re-render every pending row once a second."""
+        active_id = self._backend._active_task_id
+        if not active_id:
+            return
+        tasks = self._visible()
+        for row, task in enumerate(tasks):
+            if task["id"] == active_id:
+                idx = self.index(row)
+                self.dataChanged.emit(idx, idx, [self.TimeRole])
+                return
 
 
 # ── History list model ──────────────────────────────────────────
@@ -373,11 +552,13 @@ class TimeTrackerBackend(QObject):
     summaryChanged = Signal()
     jsonTransferDone = Signal(str, bool)  # (message, success)
     archivedProjectsChanged = Signal()
+    completedTasksChanged = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._data = load_data()
         self._active_project = None
+        self._active_task_id = None
         self._session_start = None
         self._elapsed = 0
         self._last_checkin = None
@@ -387,6 +568,7 @@ class TimeTrackerBackend(QObject):
         self.INACTIVITY_TIMEOUT = 30 * 60  # seconds before auto-stopping if no check-in response
 
         self._project_model = ProjectListModel(self)
+        self._task_model = TaskListModel(self)
         self._history_model = HistoryListModel(self)
         self._day_detail_model = DayDetailModel(self)
         self._eod_model = EodModel(self)
@@ -428,6 +610,17 @@ class TimeTrackerBackend(QObject):
     @Property(QObject, constant=True)
     def projectModel(self):
         return self._project_model
+
+    @Property(QObject, constant=True)
+    def taskModel(self):
+        return self._task_model
+
+    @Property(str, notify=activeProjectChanged)
+    def activeTaskTitle(self):
+        if not self._active_task_id:
+            return ""
+        task = self._task_by_id(self._active_task_id)
+        return task["title"] if task else ""
 
     @Property(QObject, constant=True)
     def historyModel(self):
@@ -607,9 +800,20 @@ class TimeTrackerBackend(QObject):
 
     @Slot(str)
     def startProject(self, name):
+        self._start(name, None)
+
+    @Slot(str)
+    def startTask(self, task_id):
+        task = self._task_by_id(task_id)
+        if not task:
+            return
+        self._start(task["project"], task_id)
+
+    def _start(self, name, task_id):
         if self._active_project and self._session_start:
             self._log_time(int(time.time() - self._session_start))
         self._active_project = name
+        self._active_task_id = task_id
         self._session_start = time.time()
         self._last_checkin = time.time()
         self._elapsed = 0
@@ -620,6 +824,7 @@ class TimeTrackerBackend(QObject):
         self.summaryChanged.emit()
         self._project_model.refresh()
         self._history_model.refresh()
+        self._task_model.refresh()
         self.hasTodayLogsChanged.emit()
 
     @Slot()
@@ -627,6 +832,7 @@ class TimeTrackerBackend(QObject):
         if self._active_project and self._session_start:
             self._log_time(int(time.time() - self._session_start))
         self._active_project = None
+        self._active_task_id = None
         self._session_start = None
         self._elapsed = 0
         self._last_checkin = None
@@ -638,7 +844,81 @@ class TimeTrackerBackend(QObject):
         self.summaryChanged.emit()
         self._project_model.refresh()
         self._history_model.refresh()
+        self._task_model.refresh()
         self.hasTodayLogsChanged.emit()
+
+    # ── Tasks ──
+
+    @Slot(str, str)
+    def addTask(self, title: str, project: str):
+        title = title.strip()
+        if not title or not project:
+            return
+        self._data.setdefault("tasks", []).append({
+            "id": uuid.uuid4().hex,
+            "title": title,
+            "project": project,
+            "done": False,
+            "createdDate": date.today().isoformat(),
+            "completedDate": None,
+        })
+        save_data(self._data)
+        self._task_model.refresh()
+
+    @Slot(str)
+    def completeTask(self, task_id: str):
+        if self._active_task_id == task_id:
+            self.stopTimer()
+        task = self._task_by_id(task_id)
+        if not task:
+            return
+        task["done"] = True
+        task["completedDate"] = date.today().isoformat()
+        save_data(self._data)
+        self._task_model.refresh()
+        self.completedTasksChanged.emit()
+
+    @Slot(str)
+    def reopenTask(self, task_id: str):
+        task = self._task_by_id(task_id)
+        if not task:
+            return
+        task["done"] = False
+        task["completedDate"] = None
+        save_data(self._data)
+        self._task_model.refresh()
+        self.completedTasksChanged.emit()
+
+    @Slot(str)
+    def deleteTask(self, task_id: str):
+        if self._active_task_id == task_id:
+            self.stopTimer()
+        self._data["tasks"] = [
+            t for t in self._data.get("tasks", []) if t["id"] != task_id
+        ]
+        save_data(self._data)
+        self._task_model.refresh()
+        self.completedTasksChanged.emit()
+
+    @Slot(result="QVariantList")
+    def getCompletedTasks(self):
+        return [
+            {
+                "id": t["id"],
+                "title": t["title"],
+                "project": t["project"],
+                "time": fmt_time(self._task_seconds(t["id"])),
+            }
+            for t in self._data.get("tasks", [])
+            if t.get("done")
+        ]
+
+    @Slot(result="QVariantList")
+    def getProjectNames(self):
+        return [
+            _proj_name(p) for p in self._data["projects"]
+            if not (isinstance(p, dict) and p.get("archived", False))
+        ]
 
     @Slot(int)
     def setCheckInInterval(self, minutes):
@@ -755,6 +1035,7 @@ class TimeTrackerBackend(QObject):
         save_data(self._data)
         self._history_model.refresh()
         self._day_detail_model.load_day(day_key)
+        self._task_model.refresh()
         if day_key == date.today().isoformat():
             self._project_model.refresh()
             self.hasTodayLogsChanged.emit()
@@ -772,6 +1053,7 @@ class TimeTrackerBackend(QObject):
     def refreshModels(self):
         self._project_model.refresh()
         self._history_model.refresh()
+        self._task_model.refresh()
         self.hasTodayLogsChanged.emit()
 
     @Slot(str)
@@ -946,16 +1228,20 @@ class TimeTrackerBackend(QObject):
             if "dailyLogs" not in new_data:
                 self.jsonTransferDone.emit("Import failed: not a valid tracker data file", False)
                 return
+            snapshot_pre_import_backup()
             # Migrate legacy string-format projects
             new_data["projects"] = [
                 p if isinstance(p, dict)
                 else {"name": p, "billingCode": "", "billable": True}
                 for p in new_data.get("projects", [])
             ]
+            new_data.setdefault("tasks", [])
             self._data = new_data
             save_data(self._data)
             self._project_model.refresh()
             self._history_model.refresh()
+            self._task_model.refresh()
+            self.completedTasksChanged.emit()
             self.hasTodayLogsChanged.emit()
             self.summaryChanged.emit()
             self.jsonTransferDone.emit(f"Imported {os.path.basename(file_path)}", True)
@@ -968,6 +1254,7 @@ class TimeTrackerBackend(QObject):
         self._data["activeSession"] = {
             "project": self._active_project,
             "startTime": self._session_start,
+            "task": self._active_task_id,
         }
         save_data(self._data)
 
@@ -996,6 +1283,9 @@ class TimeTrackerBackend(QObject):
         self._session_start = start_time
         self._last_checkin = time.time()
         self._elapsed = int(time.time() - start_time)
+        task_id = session.get("task")
+        task = self._task_by_id(task_id) if task_id else None
+        self._active_task_id = task_id if task and not task.get("done") else None
 
     @Slot()
     def saveAndStop(self):
@@ -1035,9 +1325,40 @@ class TimeTrackerBackend(QObject):
         entry = self._data["dailyLogs"][day_key][self._active_project]
         if "sessions" not in entry:
             entry["sessions"] = []
-        entry["sessions"].append({"start": start_min, "end": end_min})
+        entry["sessions"].append({"start": start_min, "end": end_min, "task": self._active_task_id})
         entry["seconds"] = sum((s["end"] - s["start"]) * 60 for s in entry["sessions"])
+        if self._active_task_id:
+            self._autofill_description(day_key, self._active_project, self._active_task_id)
         save_data(self._data)
+
+    def _autofill_description(self, day_key, project, task_id):
+        """Append the task's title to the day/project description, once, without
+        touching any text already there (manual edits are never overwritten)."""
+        task = self._task_by_id(task_id)
+        if not task:
+            return
+        entry = self._data["dailyLogs"][day_key][project]
+        lines = [l for l in entry.get("description", "").split("\n") if l.strip()]
+        if task["title"] not in lines:
+            lines.append(task["title"])
+            entry["description"] = "\n".join(lines)
+
+    def _task_by_id(self, task_id):
+        for t in self._data.get("tasks", []):
+            if t["id"] == task_id:
+                return t
+        return None
+
+    def _task_seconds(self, task_id):
+        total = 0
+        for log in self._data.get("dailyLogs", {}).values():
+            for info in log.values():
+                for s in info.get("sessions", []):
+                    if s.get("task") == task_id:
+                        total += (s["end"] - s["start"]) * 60
+        if self._active_task_id == task_id and self._session_start:
+            total += int(time.time() - self._session_start)
+        return total
 
     def _get_today_total(self, proj):
         today = date.today().isoformat()
@@ -1060,6 +1381,7 @@ class TimeTrackerBackend(QObject):
             # Refresh models to update "today" times for active project
             self._project_model.refresh()
             self._history_model.refresh()
+            self._task_model.refresh_active_time()
 
         # Check-in
         if self._active_project and self._last_checkin:

@@ -92,7 +92,7 @@ Item {
                     var sStart = Math.max(s.start, startHour * 60)
                     var sEnd   = Math.min(s.end,   endHour   * 60)
                     if (sEnd > sStart) {
-                        sessionModel.append({ projIdx: pi, start: sStart, end: sEnd })
+                        sessionModel.append({ projIdx: pi, start: sStart, end: sEnd, task: s.task || null })
                     }
                 }
             }
@@ -108,7 +108,7 @@ Item {
         for (var i = 0; i < sessionModel.count; i++) {
             var item = sessionModel.get(i)
             if (!byProj[item.projIdx]) byProj[item.projIdx] = []
-            byProj[item.projIdx].push({ start: item.start, end: item.end })
+            byProj[item.projIdx].push({ start: item.start, end: item.end, task: item.task || null })
         }
         for (var pi = 0; pi < projectMeta.length; pi++) {
             var projName = projectMeta[pi].name
@@ -663,7 +663,8 @@ Item {
                                     sessionModel.append({
                                         projIdx: colBg.index,
                                         start:   colBg.previewStart,
-                                        end:     colBg.previewEnd
+                                        end:     colBg.previewEnd,
+                                        task:    null
                                     })
                                 }
                                 colBg.isDragging = false

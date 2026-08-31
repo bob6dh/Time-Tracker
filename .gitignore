@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 tracker_data.json
+tracker_data.json.bak
+backups/
