@@ -165,6 +165,33 @@ Item {
                     }
                 }
 
+                // Idle timeout
+                Label { text: "Idle Timeout"; font.pixelSize: 20; font.bold: true
+                        color: "#1f2937"; Layout.bottomMargin: 4 }
+                Label { text: "Auto-stop the timer after this long with no\nkeyboard or mouse activity, excluding the idle time."
+                        font.pixelSize: 14; color: "#6b7280"; Layout.bottomMargin: 12 }
+
+                RowLayout {
+                    spacing: 8; Layout.bottomMargin: 24
+                    Repeater {
+                        model: [5, 10, 15]
+                        Rectangle {
+                            required property int modelData
+                            required property int index
+                            property bool selected: backend.idleTimeout === modelData
+                            width: 80; height: 40; radius: 4
+                            color: selected ? "#1f2937" : idleMa.containsMouse ? "#f0f0f0" : "#ffffff"
+                            border.color: "#e5e7eb"; border.width: selected ? 0 : 1
+                            Label { anchors.centerIn: parent
+                                    text: modelData + " min"
+                                    font.pixelSize: 14; color: selected ? "#ffffff" : "#6b7280" }
+                            MouseArea { id: idleMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: backend.setIdleTimeout(modelData) }
+                        }
+                    }
+                }
+
                 // Data section
                 Label { text: "Data"; font.pixelSize: 20; font.bold: true
                         color: "#1f2937"; Layout.bottomMargin: 8 }
