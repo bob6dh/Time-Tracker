@@ -92,7 +92,10 @@ Item {
                     var sStart = Math.max(s.start, startHour * 60)
                     var sEnd   = Math.min(s.end,   endHour   * 60)
                     if (sEnd > sStart) {
-                        sessionModel.append({ projIdx: pi, start: sStart, end: sEnd, task: s.task || null })
+                        // ListModel can't infer a role's type from a literal null in append(),
+                        // so "" is used as the "no task" sentinel here (never null) — converted
+                        // back to null only when serialized to JSON in saveAll().
+                        sessionModel.append({ projIdx: pi, start: sStart, end: sEnd, task: s.task || "" })
                     }
                 }
             }
@@ -108,7 +111,7 @@ Item {
         for (var i = 0; i < sessionModel.count; i++) {
             var item = sessionModel.get(i)
             if (!byProj[item.projIdx]) byProj[item.projIdx] = []
-            byProj[item.projIdx].push({ start: item.start, end: item.end, task: item.task || null })
+            byProj[item.projIdx].push({ start: item.start, end: item.end, task: item.task ? item.task : null })
         }
         for (var pi = 0; pi < projectMeta.length; pi++) {
             var projName = projectMeta[pi].name
@@ -664,7 +667,7 @@ Item {
                                         projIdx: colBg.index,
                                         start:   colBg.previewStart,
                                         end:     colBg.previewEnd,
-                                        task:    null
+                                        task:    ""
                                     })
                                 }
                                 colBg.isDragging = false
