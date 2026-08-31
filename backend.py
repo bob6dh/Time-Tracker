@@ -92,6 +92,8 @@ def load_data():
         for p in data.get("projects", [])
     ]
     data.setdefault("tasks", [])
+    for t in data["tasks"]:
+        t.setdefault("dueDate", None)
     return data
 
 
@@ -272,6 +274,8 @@ class TaskListModel(QAbstractListModel):
     ProjectRole = Qt.UserRole + 3
     IsActiveRole = Qt.UserRole + 4
     TimeRole = Qt.UserRole + 5
+    DueDateRole = Qt.UserRole + 6
+    DueDateLabelRole = Qt.UserRole + 7
 
     def __init__(self, backend, parent=None):
         super().__init__(parent)
@@ -284,11 +288,18 @@ class TaskListModel(QAbstractListModel):
             self.ProjectRole: QByteArray(b"project"),
             self.IsActiveRole: QByteArray(b"isActive"),
             self.TimeRole: QByteArray(b"timeText"),
+            self.DueDateRole: QByteArray(b"dueDate"),
+            self.DueDateLabelRole: QByteArray(b"dueDateLabel"),
         }
 
     def _visible(self):
-        """Return pending (not-done) tasks for the Tasks tab."""
-        return [t for t in self._backend._data.get("tasks", []) if not t.get("done")]
+        """Return pending (not-done) tasks for the Tasks tab, sorted by due date
+        (undated tasks last), then by creation date."""
+        tasks = [t for t in self._backend._data.get("tasks", []) if not t.get("done")]
+        return sorted(
+            tasks,
+            key=lambda t: (t.get("dueDate") or "9999-12-31", t.get("createdDate") or ""),
+        )
 
     def rowCount(self, parent=QModelIndex()):
         return len(self._visible())
@@ -307,6 +318,11 @@ class TaskListModel(QAbstractListModel):
             return self._backend._active_task_id == task["id"]
         if role == self.TimeRole:
             return fmt_time(self._backend._task_seconds(task["id"]))
+        if role == self.DueDateRole:
+            return task.get("dueDate") or ""
+        if role == self.DueDateLabelRole:
+            due = task.get("dueDate")
+            return fmt_date(due) if due else ""
         return None
 
     def refresh(self):
@@ -868,8 +884,8 @@ class TimeTrackerBackend(QObject):
 
     # ── Tasks ──
 
-    @Slot(str, str)
-    def addTask(self, title: str, project: str):
+    @Slot(str, str, str)
+    def addTask(self, title: str, project: str, due_date: str):
         title = title.strip()
         if not title or not project:
             return
@@ -880,7 +896,22 @@ class TimeTrackerBackend(QObject):
             "done": False,
             "createdDate": date.today().isoformat(),
             "completedDate": None,
+            "dueDate": due_date or None,
         })
+        save_data(self._data)
+        self._task_model.refresh()
+
+    @Slot(str, str, str, str)
+    def editTask(self, task_id: str, title: str, project: str, due_date: str):
+        title = title.strip()
+        if not title or not project:
+            return
+        task = self._task_by_id(task_id)
+        if not task:
+            return
+        task["title"] = title
+        task["project"] = project
+        task["dueDate"] = due_date or None
         save_data(self._data)
         self._task_model.refresh()
 
