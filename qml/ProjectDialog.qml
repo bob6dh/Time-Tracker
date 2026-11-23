@@ -23,7 +23,7 @@ Dialog {
     background: Rectangle {
         radius: 8
         color: "#ffffff"
-        border.color: "#e5e7eb"
+        border.color: "#e2e8f0"
         border.width: 1
     }
 
@@ -35,7 +35,7 @@ Dialog {
             text: "New Project"
             font.pixelSize: 18
             font.bold: true
-            color: "#1f2937"
+            color: "#0f172a"
             Layout.bottomMargin: 18
         }
 
@@ -43,15 +43,15 @@ Dialog {
         Label {
             text: "Project Name"
             font.pixelSize: 12
-            color: "#6b7280"
+            color: "#64748b"
             Layout.bottomMargin: 4
         }
         Rectangle {
             Layout.fillWidth: true
             height: 40
-            radius: 4
+            radius: 8
             color: "#ffffff"
-            border.color: nameField.activeFocus ? "#2563eb" : "#e5e7eb"
+            border.color: nameField.activeFocus ? "#4f46e5" : "#e2e8f0"
             border.width: 1
             Layout.bottomMargin: 14
 
@@ -61,13 +61,13 @@ Dialog {
                 anchors.margins: 10
                 verticalAlignment: TextInput.AlignVCenter
                 font.pixelSize: 14
-                color: "#1f2937"
+                color: "#0f172a"
                 clip: true
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "e.g. Website Redesign"
-                    color: "#adb5bd"
+                    color: "#94a3b8"
                     font.pixelSize: 14
                     visible: !nameField.text && !nameField.activeFocus
                 }
@@ -80,15 +80,15 @@ Dialog {
         Label {
             text: "Billing Code"
             font.pixelSize: 12
-            color: "#6b7280"
+            color: "#64748b"
             Layout.bottomMargin: 4
         }
         Rectangle {
             Layout.fillWidth: true
             height: 40
-            radius: 4
+            radius: 8
             color: "#ffffff"
-            border.color: billingCodeField.activeFocus ? "#2563eb" : "#e5e7eb"
+            border.color: billingCodeField.activeFocus ? "#4f46e5" : "#e2e8f0"
             border.width: 1
             Layout.bottomMargin: 18
 
@@ -98,13 +98,13 @@ Dialog {
                 anchors.margins: 10
                 verticalAlignment: TextInput.AlignVCenter
                 font.pixelSize: 14
-                color: "#1f2937"
+                color: "#0f172a"
                 clip: true
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "Optional"
-                    color: "#adb5bd"
+                    color: "#94a3b8"
                     font.pixelSize: 14
                     visible: !billingCodeField.text && !billingCodeField.activeFocus
                 }
@@ -126,12 +126,12 @@ Dialog {
                 Label {
                     text: "Billable"
                     font.pixelSize: 14
-                    color: "#1f2937"
+                    color: "#0f172a"
                 }
                 Label {
                     text: projectDialog.billable ? "Time will be billed to client" : "Internal / non-billable"
                     font.pixelSize: 11
-                    color: "#9ca3af"
+                    color: "#94a3b8"
                 }
             }
 
@@ -140,7 +140,7 @@ Dialog {
             // Toggle switch
             Rectangle {
                 width: 48; height: 26; radius: 13
-                color: projectDialog.billable ? "#2563eb" : "#d1d5db"
+                color: projectDialog.billable ? "#4f46e5" : "#cbd5e1"
 
                 Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -168,15 +168,15 @@ Dialog {
 
             Rectangle {
                 Layout.fillWidth: true
-                height: 40; radius: 4
-                color: cancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
-                border.color: "#e5e7eb"; border.width: 1
+                height: 40; radius: 8
+                color: cancelMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                border.color: "#e2e8f0"; border.width: 1
 
                 Label {
                     anchors.centerIn: parent
                     text: "Cancel"
                     font.pixelSize: 14
-                    color: "#6b7280"
+                    color: "#64748b"
                 }
                 MouseArea {
                     id: cancelMa
@@ -189,10 +189,10 @@ Dialog {
 
             Rectangle {
                 Layout.fillWidth: true
-                height: 40; radius: 4
+                height: 40; radius: 8
                 color: {
-                    if (!nameValid) return "#9ca3af"
-                    return createMa.containsMouse ? "#374151" : "#1f2937"
+                    if (!nameValid) return "#94a3b8"
+                    return createMa.containsMouse ? "#4338ca" : "#4f46e5"
                 }
 
                 property bool nameValid: nameField.text.trim() !== ""

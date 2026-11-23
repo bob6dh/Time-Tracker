@@ -16,6 +16,7 @@ Dialog {
     property string initialTitle: ""
     property string initialProject: ""
     property string initialDueDate: ""   // "" or "YYYY-MM-DD"
+    property int initialEstimateMinutes: 0
     property bool hasDueDate: false
 
     // Reset/populate fields each time the dialog opens
@@ -28,12 +29,14 @@ Dialog {
             dueDatePicker.year = new Date().getFullYear()
             dueDatePicker.month = new Date().getMonth() + 1
             dueDatePicker.day = new Date().getDate()
+            estimateStepper.estimateMinutes = 30
         } else {
             titleField.text = taskDialog.initialTitle
             var idx = projectCombo.model.indexOf(taskDialog.initialProject)
             projectCombo.currentIndex = idx >= 0 ? idx : (projectCombo.model.length > 0 ? 0 : -1)
             taskDialog.hasDueDate = taskDialog.initialDueDate !== ""
             if (taskDialog.hasDueDate) dueDatePicker.setFromString(taskDialog.initialDueDate)
+            estimateStepper.estimateMinutes = taskDialog.initialEstimateMinutes
         }
         titleField.forceActiveFocus()
     }
@@ -41,7 +44,7 @@ Dialog {
     background: Rectangle {
         radius: 8
         color: "#ffffff"
-        border.color: "#e5e7eb"
+        border.color: "#e2e8f0"
         border.width: 1
     }
 
@@ -53,7 +56,7 @@ Dialog {
             text: taskDialog.taskId === "" ? "New Task" : "Edit Task"
             font.pixelSize: 18
             font.bold: true
-            color: "#1f2937"
+            color: "#0f172a"
             Layout.bottomMargin: 18
         }
 
@@ -61,15 +64,15 @@ Dialog {
         Label {
             text: "Task Title"
             font.pixelSize: 12
-            color: "#6b7280"
+            color: "#64748b"
             Layout.bottomMargin: 4
         }
         Rectangle {
             Layout.fillWidth: true
             height: 40
-            radius: 4
+            radius: 8
             color: "#ffffff"
-            border.color: titleField.activeFocus ? "#2563eb" : "#e5e7eb"
+            border.color: titleField.activeFocus ? "#4f46e5" : "#e2e8f0"
             border.width: 1
             Layout.bottomMargin: 14
 
@@ -79,13 +82,13 @@ Dialog {
                 anchors.margins: 10
                 verticalAlignment: TextInput.AlignVCenter
                 font.pixelSize: 14
-                color: "#1f2937"
+                color: "#0f172a"
                 clip: true
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "e.g. Write proposal"
-                    color: "#adb5bd"
+                    color: "#94a3b8"
                     font.pixelSize: 14
                     visible: !titleField.text && !titleField.activeFocus
                 }
@@ -100,7 +103,7 @@ Dialog {
         Label {
             text: "Project"
             font.pixelSize: 12
-            color: "#6b7280"
+            color: "#64748b"
             Layout.bottomMargin: 4
         }
         ComboBox {
@@ -120,6 +123,18 @@ Dialog {
             Layout.bottomMargin: 14
         }
 
+        // ── Time Estimate ────────────────────────────────────────
+        Label {
+            text: "Time Estimate"
+            font.pixelSize: 12
+            color: "#64748b"
+            Layout.bottomMargin: 4
+        }
+        EstimateStepper {
+            id: estimateStepper
+            Layout.bottomMargin: 18
+        }
+
         // ── Due Date ─────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
@@ -129,13 +144,13 @@ Dialog {
             Label {
                 text: "Due Date"
                 font.pixelSize: 12
-                color: "#6b7280"
+                color: "#64748b"
                 Layout.fillWidth: true
             }
 
             Rectangle {
                 width: 40; height: 22; radius: 11
-                color: taskDialog.hasDueDate ? "#2563eb" : "#d1d5db"
+                color: taskDialog.hasDueDate ? "#4f46e5" : "#cbd5e1"
                 Behavior on color { ColorAnimation { duration: 120 } }
 
                 Rectangle {
@@ -168,15 +183,15 @@ Dialog {
 
             Rectangle {
                 Layout.fillWidth: true
-                height: 40; radius: 4
-                color: cancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
-                border.color: "#e5e7eb"; border.width: 1
+                height: 40; radius: 8
+                color: cancelMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                border.color: "#e2e8f0"; border.width: 1
 
                 Label {
                     anchors.centerIn: parent
                     text: "Cancel"
                     font.pixelSize: 14
-                    color: "#6b7280"
+                    color: "#64748b"
                 }
                 MouseArea {
                     id: cancelMa
@@ -189,9 +204,9 @@ Dialog {
 
             Rectangle {
                 Layout.fillWidth: true
-                height: 40; radius: 4
-                color: !taskDialog.canCreate ? "#9ca3af"
-                     : createMa.containsMouse ? "#374151" : "#1f2937"
+                height: 40; radius: 8
+                color: !taskDialog.canCreate ? "#94a3b8"
+                     : createMa.containsMouse ? "#4338ca" : "#4f46e5"
 
                 Label {
                     anchors.centerIn: parent
@@ -215,9 +230,9 @@ Dialog {
     function submit() {
         var due = taskDialog.hasDueDate ? dueDatePicker.dateStr() : ""
         if (taskDialog.taskId === "") {
-            backend.addTask(titleField.text.trim(), projectCombo.currentText, due)
+            backend.addTask(titleField.text.trim(), projectCombo.currentText, due, estimateStepper.estimateMinutes)
         } else {
-            backend.editTask(taskDialog.taskId, titleField.text.trim(), projectCombo.currentText, due)
+            backend.editTask(taskDialog.taskId, titleField.text.trim(), projectCombo.currentText, due, estimateStepper.estimateMinutes)
         }
         taskDialog.close()
     }

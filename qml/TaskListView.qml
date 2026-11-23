@@ -7,16 +7,35 @@ Item {
 
     property bool showCompleted: false
     property var completedTasks: []
+    property var carryOverTasks: []
 
     function refreshCompleted() {
         completedTasks = backend.getCompletedTasks()
     }
 
-    Component.onCompleted: refreshCompleted()
+    function refreshCarryOver() {
+        carryOverTasks = backend.getCarryOverTasks()
+    }
+
+    function quickAdd() {
+        if (quickTitleField.text.trim() === "" || quickProjectCombo.currentIndex < 0) return
+        backend.addTask(quickTitleField.text.trim(), quickProjectCombo.currentText, "", quickEstimateStepper.estimateMinutes)
+        quickTitleField.text = ""
+        quickEstimateStepper.estimateMinutes = 30
+    }
+
+    Component.onCompleted: {
+        refreshCompleted()
+        refreshCarryOver()
+    }
 
     Connections {
         target: backend
         function onCompletedTasksChanged() { taskListRoot.refreshCompleted() }
+        function onTasksChanged() {
+            taskListRoot.refreshCompleted()
+            taskListRoot.refreshCarryOver()
+        }
     }
 
     TaskDialog { id: taskDialog }
@@ -41,20 +60,132 @@ Item {
                 spacing: 6
 
                 Label {
-                    text: "Tasks"
+                    text: "Today's Plan"
                     font.pixelSize: 24
                     font.bold: true
-                    color: "#1f2937"
-                    Layout.bottomMargin: 10
+                    color: "#0f172a"
+                    Layout.bottomMargin: 2
+                }
+
+                Label {
+                    text: "Planned " + backend.todayEstimateTotal + " · Logged " + backend.todayTotal
+                    font.pixelSize: 13
+                    color: "#64748b"
+                    Layout.bottomMargin: 14
+                }
+
+                // ── Quick add ─────────────────────────────────────────────
+                Label {
+                    text: "What do you want to work on today?"
+                    font.pixelSize: 13
+                    font.bold: true
+                    color: "#1e293b"
+                    Layout.bottomMargin: 6
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 16
+                    spacing: 8
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 38
+                        radius: 8
+                        color: "#ffffff"
+                        border.color: quickTitleField.activeFocus ? "#4f46e5" : "#e2e8f0"
+                        border.width: 1
+
+                        TextInput {
+                            id: quickTitleField
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            verticalAlignment: TextInput.AlignVCenter
+                            font.pixelSize: 13
+                            color: "#0f172a"
+                            clip: true
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "Add a task…"
+                                color: "#94a3b8"
+                                font.pixelSize: 13
+                                visible: !quickTitleField.text && !quickTitleField.activeFocus
+                            }
+
+                            Keys.onReturnPressed: quickAdd()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        ComboBox {
+                            id: quickProjectCombo
+                            Layout.fillWidth: true
+                            model: backend.getProjectNames()
+                            font.pixelSize: 13
+
+                            background: Rectangle {
+                                implicitHeight: 34
+                                radius: 8
+                                color: "#ffffff"
+                                border.color: quickProjectCombo.activeFocus ? "#4f46e5" : "#e2e8f0"
+                                border.width: 1
+                            }
+                            contentItem: Label {
+                                text: quickProjectCombo.displayText
+                                font.pixelSize: 13
+                                color: "#0f172a"
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: 10
+                                rightPadding: 20
+                                elide: Text.ElideRight
+                            }
+                            indicator: Label {
+                                text: "⌄"
+                                font.pixelSize: 14
+                                color: "#94a3b8"
+                                anchors.right: parent.right
+                                anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        EstimateStepper {
+                            id: quickEstimateStepper
+                        }
+
+                        Rectangle {
+                            width: 34; height: 34; radius: 8
+                            color: quickAddMa.containsMouse ? "#4338ca" : "#4f46e5"
+                            opacity: quickTitleField.text.trim() !== "" && quickProjectCombo.currentIndex >= 0 ? 1.0 : 0.5
+
+                            Label {
+                                anchors.centerIn: parent
+                                text: "+"
+                                font.pixelSize: 18
+                                color: "white"
+                            }
+                            MouseArea {
+                                id: quickAddMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: quickAdd()
+                            }
+                        }
+                    }
                 }
 
                 // Empty state
                 Label {
                     text: "Add a task to get started"
                     font.pixelSize: 14
-                    color: "#adb5bd"
+                    color: "#94a3b8"
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: 30
+                    Layout.topMargin: 10
                     visible: taskRepeater.count === 0
                 }
 
@@ -71,13 +202,15 @@ Item {
                         required property string timeText
                         required property string dueDate
                         required property string dueDateLabel
+                        required property string estimateLabel
+                        required property int    estimateMinutes
                         required property int    index
 
                         Layout.fillWidth: true
                         height: 70
-                        radius: 6
-                        color: isActive ? "#eef4ff" : "#ffffff"
-                        border.color: isActive ? "#93c5fd" : "#e5e7eb"
+                        radius: 10
+                        color: isActive ? "#eef2ff" : "#ffffff"
+                        border.color: isActive ? "#c7d2fe" : "#e2e8f0"
                         border.width: 1
 
                         Item {
@@ -92,7 +225,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "✕"
                                 font.pixelSize: 15
-                                color: deleteMa.containsMouse ? "#ef4444" : "#d1d5db"
+                                color: deleteMa.containsMouse ? "#ef4444" : "#cbd5e1"
 
                                 MouseArea {
                                     id: deleteMa
@@ -115,7 +248,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "✎"
                                 font.pixelSize: 14
-                                color: editMa.containsMouse ? "#2563eb" : "#d1d5db"
+                                color: editMa.containsMouse ? "#4f46e5" : "#cbd5e1"
 
                                 MouseArea {
                                     id: editMa
@@ -127,6 +260,7 @@ Item {
                                         taskDialog.initialTitle = title
                                         taskDialog.initialProject = project
                                         taskDialog.initialDueDate = dueDate
+                                        taskDialog.initialEstimateMinutes = estimateMinutes
                                         taskDialog.open()
                                     }
                                 }
@@ -139,15 +273,15 @@ Item {
                                 anchors.rightMargin: 10
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 26; height: 26; radius: 13
-                                color: doneMa.containsMouse ? "#dcfce7" : "#ffffff"
-                                border.color: doneMa.containsMouse ? "#16a34a" : "#e5e7eb"
+                                color: doneMa.containsMouse ? "#d1fae5" : "#ffffff"
+                                border.color: doneMa.containsMouse ? "#059669" : "#e2e8f0"
                                 border.width: 1
 
                                 Label {
                                     anchors.centerIn: parent
                                     text: "✓"
                                     font.pixelSize: 13
-                                    color: doneMa.containsMouse ? "#16a34a" : "#9ca3af"
+                                    color: doneMa.containsMouse ? "#059669" : "#94a3b8"
                                 }
 
                                 MouseArea {
@@ -168,8 +302,8 @@ Item {
                                 width: isActive ? (activeLbl.implicitWidth + 20) : (startRow.implicitWidth + 24)
                                 height: 34
                                 radius: 17
-                                color: isActive ? "#dbeafe" : "transparent"
-                                border.color: isActive ? "#93c5fd" : "transparent"
+                                color: isActive ? "#e0e7ff" : "transparent"
+                                border.color: isActive ? "#c7d2fe" : "transparent"
                                 border.width: isActive ? 1 : 0
 
                                 gradient: isActive ? null : startGradient
@@ -177,8 +311,8 @@ Item {
                                 Gradient {
                                     id: startGradient
                                     orientation: Gradient.Horizontal
-                                    GradientStop { position: 0.0; color: startMa.containsMouse ? "#15803d" : "#16a34a" }
-                                    GradientStop { position: 1.0; color: startMa.containsMouse ? "#166534" : "#15803d" }
+                                    GradientStop { position: 0.0; color: startMa.containsMouse ? "#4338ca" : "#4f46e5" }
+                                    GradientStop { position: 1.0; color: startMa.containsMouse ? "#4338ca" : "#4f46e5" }
                                 }
 
                                 Label {
@@ -188,7 +322,7 @@ Item {
                                     text: "● Active"
                                     font.pixelSize: 12
                                     font.bold: true
-                                    color: "#2563eb"
+                                    color: "#4f46e5"
                                 }
 
                                 Row {
@@ -234,7 +368,7 @@ Item {
                                     text: title
                                     font.pixelSize: 15
                                     font.bold: true
-                                    color: isActive ? "#2563eb" : "#1f2937"
+                                    color: isActive ? "#4f46e5" : "#0f172a"
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                 }
@@ -243,23 +377,23 @@ Item {
                                     spacing: 6
 
                                     Rectangle {
-                                        height: 16; radius: 3
+                                        height: 16; radius: 5
                                         width: projLabel.implicitWidth + 8
-                                        color: "#f0f4ff"
+                                        color: "#eef2ff"
 
                                         Label {
                                             id: projLabel
                                             anchors.centerIn: parent
                                             text: project
                                             font.pixelSize: 10
-                                            color: "#4a86c8"
+                                            color: "#4f46e5"
                                         }
                                     }
 
                                     Label {
-                                        text: "· " + timeText
+                                        text: "· " + timeText + (estimateLabel ? " / " + estimateLabel + " est" : "")
                                         font.pixelSize: 11
-                                        color: "#9ca3af"
+                                        color: "#94a3b8"
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
 
@@ -276,13 +410,77 @@ Item {
                     }
                 }
 
+                // ── Carried over from yesterday ──────────────────────────
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+                    spacing: 6
+                    visible: taskListRoot.carryOverTasks.length > 0
+
+                    Label {
+                        text: "Carried over from yesterday"
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: "#92400e"
+                    }
+
+                    Repeater {
+                        model: taskListRoot.carryOverTasks
+
+                        Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            height: carryRow.implicitHeight + 16
+                            radius: 10
+                            color: "#fffbeb"
+                            border.color: "#fde68a"
+                            border.width: 1
+
+                            RowLayout {
+                                id: carryRow
+                                anchors { left: parent.left; right: parent.right
+                                          verticalCenter: parent.verticalCenter; margins: 12 }
+                                spacing: 10
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: 2
+                                    Label {
+                                        text: modelData.title
+                                        font.pixelSize: 14; font.bold: true; color: "#78350f"
+                                        elide: Text.ElideRight; Layout.fillWidth: true
+                                    }
+                                    Label {
+                                        text: modelData.project + (modelData.estimateLabel ? " · " + modelData.estimateLabel : "")
+                                        font.pixelSize: 11; color: "#b45309"
+                                    }
+                                }
+
+                                Rectangle {
+                                    implicitWidth: pullLbl.implicitWidth + 18
+                                    height: 30; radius: 8
+                                    color: pullMa.containsMouse ? "#92400e" : "#b45309"
+                                    Label {
+                                        id: pullLbl; anchors.centerIn: parent
+                                        text: "+ Add to Today"; font.pixelSize: 12; color: "white"
+                                    }
+                                    MouseArea {
+                                        id: pullMa; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: backend.pullToToday(modelData.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Completed tasks nav row
                 Rectangle {
                     Layout.fillWidth: true
                     height: 44
-                    radius: 6
-                    color: completedNavMa.containsMouse ? "#f9fafb" : "#ffffff"
-                    border.color: "#e5e7eb"; border.width: 1
+                    radius: 10
+                    color: completedNavMa.containsMouse ? "#f8fafc" : "#ffffff"
+                    border.color: "#e2e8f0"; border.width: 1
                     Layout.topMargin: 8
 
                     RowLayout {
@@ -290,58 +488,24 @@ Item {
                         spacing: 8
                         Label {
                             text: "Completed"
-                            font.pixelSize: 14; color: "#374151"
+                            font.pixelSize: 14; color: "#1e293b"
                             Layout.fillWidth: true
                         }
                         Rectangle {
                             visible: taskListRoot.completedTasks.length > 0
                             implicitWidth: completedCountLbl.implicitWidth + 12
                             height: 20; radius: 10
-                            color: "#e5e7eb"
+                            color: "#e2e8f0"
                             Label { id: completedCountLbl; anchors.centerIn: parent
                                     text: taskListRoot.completedTasks.length
-                                    font.pixelSize: 11; color: "#6b7280" }
+                                    font.pixelSize: 11; color: "#64748b" }
                         }
-                        Label { text: "›"; font.pixelSize: 18; color: "#9ca3af" }
+                        Label { text: "›"; font.pixelSize: 18; color: "#94a3b8" }
                     }
                     MouseArea {
                         id: completedNavMa; anchors.fill: parent; hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: taskListRoot.showCompleted = true
-                    }
-                }
-
-                // New Task button
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 4
-                    color: newTaskMa.containsMouse ? "#374151" : "#1f2937"
-                    Layout.topMargin: 6
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 6
-                        Label {
-                            text: "+"
-                            font.pixelSize: 18
-                            color: "white"
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Label {
-                            text: "New Task"
-                            font.pixelSize: 14
-                            color: "white"
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-
-                    MouseArea {
-                        id: newTaskMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: { taskDialog.taskId = ""; taskDialog.open() }
                     }
                 }
 
@@ -359,7 +523,7 @@ Item {
         Label {
             text: "← Back"
             font.pixelSize: 14
-            color: compBackMa.containsMouse ? "#1f2937" : "#6b7280"
+            color: compBackMa.containsMouse ? "#0f172a" : "#64748b"
             Layout.bottomMargin: 4
             MouseArea {
                 id: compBackMa; anchors.fill: parent; hoverEnabled: true
@@ -370,19 +534,19 @@ Item {
 
         Label {
             text: "Completed Tasks"
-            font.pixelSize: 20; font.bold: true; color: "#1f2937"
+            font.pixelSize: 20; font.bold: true; color: "#0f172a"
             Layout.bottomMargin: 4
         }
         Label {
             text: "Reopen a task to make it active again in your list."
-            font.pixelSize: 13; color: "#6b7280"
+            font.pixelSize: 13; color: "#64748b"
             Layout.bottomMargin: 16
         }
 
         Label {
             visible: taskListRoot.completedTasks.length === 0
             text: "No completed tasks yet"
-            font.pixelSize: 14; color: "#9ca3af"
+            font.pixelSize: 14; color: "#94a3b8"
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 20
         }
@@ -409,9 +573,9 @@ Item {
 
                         Layout.fillWidth: true
                         height: compRow.implicitHeight + 20
-                        radius: 6
+                        radius: 10
                         color: "#ffffff"
-                        border.color: "#e5e7eb"; border.width: 1
+                        border.color: "#e2e8f0"; border.width: 1
 
                         RowLayout {
                             id: compRow
@@ -423,19 +587,19 @@ Item {
                                 Layout.fillWidth: true; spacing: 2
                                 Label {
                                     text: modelData.title
-                                    font.pixelSize: 14; font.bold: true; color: "#374151"
+                                    font.pixelSize: 14; font.bold: true; color: "#1e293b"
                                     elide: Text.ElideRight; Layout.fillWidth: true
                                 }
                                 Label {
                                     text: modelData.project + " · " + modelData.time
-                                    font.pixelSize: 11; color: "#9ca3af"
+                                    font.pixelSize: 11; color: "#94a3b8"
                                 }
                             }
 
                             Rectangle {
                                 implicitWidth: reopenLbl.implicitWidth + 20
-                                height: 34; radius: 4
-                                color: reopenMa.containsMouse ? "#374151" : "#1f2937"
+                                height: 34; radius: 8
+                                color: reopenMa.containsMouse ? "#4338ca" : "#4f46e5"
                                 Label {
                                     id: reopenLbl; anchors.centerIn: parent
                                     text: "Reopen"; font.pixelSize: 13; color: "white"

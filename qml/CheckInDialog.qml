@@ -58,14 +58,14 @@ Dialog {
             text: "Still working on"
             font.pixelSize: 16
             font.bold: true
-            color: "#1f2937"
+            color: "#0f172a"
         }
 
         Label {
             text: checkInDialog.projectName + "?"
             font.pixelSize: 22
             font.bold: true
-            color: "#2563eb"
+            color: "#4f46e5"
             Layout.bottomMargin: 14
         }
 
@@ -76,8 +76,8 @@ Dialog {
             Rectangle {
                 Layout.fillWidth: true
                 height: 40
-                radius: 4
-                color: yesMa.containsMouse ? "#374151" : "#1f2937"
+                radius: 8
+                color: yesMa.containsMouse ? "#4338ca" : "#4f46e5"
 
                 Label {
                     anchors.centerIn: parent
@@ -100,16 +100,16 @@ Dialog {
             Rectangle {
                 Layout.fillWidth: true
                 height: 40
-                radius: 4
-                color: noMa.containsMouse ? "#f0f0f0" : "#ffffff"
-                border.color: "#e5e7eb"
+                radius: 8
+                color: noMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                border.color: "#e2e8f0"
                 border.width: 1
 
                 Label {
                     anchors.centerIn: parent
                     text: "No, stop"
                     font.pixelSize: 14
-                    color: "#6b7280"
+                    color: "#64748b"
                 }
                 MouseArea {
                     id: noMa
@@ -129,7 +129,7 @@ Dialog {
             Layout.alignment: Qt.AlignHCenter
             text: "Auto-stopping in " + checkInDialog.formatCountdown(checkInDialog.secondsLeft)
             font.pixelSize: 12
-            color: checkInDialog.secondsLeft <= 60 ? "#ef4444" : "#9ca3af"
+            color: checkInDialog.secondsLeft <= 60 ? "#ef4444" : "#94a3b8"
         }
     }
 }

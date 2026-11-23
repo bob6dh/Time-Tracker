@@ -14,7 +14,7 @@ Item {
         var d = new Date()
         return d.getFullYear() + "-" + _pad(d.getMonth() + 1) + "-" + _pad(d.getDate())
     }
-    readonly property color accent: "#4a86c8"
+    readonly property color accent: "#4f46e5"
 
     function _pad(n) { return n < 10 ? "0" + n : "" + n }
 
@@ -96,7 +96,7 @@ Item {
                 leftPadding: 4
                 text: "No time logged yet — start a project to begin tracking."
                 font.pixelSize: 13
-                color: "#9ca3af"
+                color: "#94a3b8"
                 wrapMode: Text.WordWrap
             }
 
@@ -126,7 +126,7 @@ Item {
                             visible: monthItem.index > 0
                             width: parent.width
                             height: 1
-                            color: "#e5e7eb"
+                            color: "#e2e8f0"
                         }
 
                         // Month label
@@ -139,7 +139,7 @@ Item {
                                     "MMMM yyyy")
                             font.pixelSize: 17
                             font.bold: true
-                            color: "#1f2937"
+                            color: "#0f172a"
                         }
 
                         // Day-of-week headers
@@ -154,7 +154,7 @@ Item {
                                         anchors.centerIn: parent
                                         text: modelData
                                         font.pixelSize: 11
-                                        color: "#9ca3af"
+                                        color: "#94a3b8"
                                     }
                                 }
                             }
@@ -186,7 +186,7 @@ Item {
                                         visible: !isEmpty && dayMa.containsMouse && !hasData && !isToday
                                         anchors.centerIn: parent
                                         width: 36; height: 36; radius: 18
-                                        color: "#f3f4f6"
+                                        color: "#f1f5f9"
                                     }
 
                                     // Filled circle (has data) or outline ring (today)
@@ -208,7 +208,7 @@ Item {
                                         font.bold: hasData || isToday
                                         color: hasData ? "#ffffff"
                                              : isToday ? root.accent
-                                             : "#374151"
+                                             : "#1e293b"
                                     }
 
                                     // Click — any non-empty day

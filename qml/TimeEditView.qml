@@ -1,9 +1,11 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "SessionUtils.js" as SU
 
 Item {
     id: root
+    objectName: "timeEditView"
 
     property string dayKey: ""
     signal back()
@@ -37,7 +39,7 @@ Item {
 
     // ── Color palette ─────────────────────────────────────────────
     readonly property var colorPalette: [
-        "#4a86c8", "#e07b54", "#5cb85c", "#9b59b6",
+        "#4f46e5", "#e07b54", "#10b981", "#9b59b6",
         "#e67e22", "#1abc9c", "#e74c3c", "#f39c12"
     ]
 
@@ -69,6 +71,22 @@ Item {
         var h12 = h % 12 || 12
         return h12 + ":" + (m < 10 ? "0" : "") + m + " " + ap
     }
+    // Sessions of one project currently in the model, optionally skipping one
+    // model row (the block being resized).
+    function sessionsFor(projIdx, excludeRow) {
+        var out = []
+        for (var i = 0; i < sessionModel.count; i++) {
+            if (i === excludeRow) continue
+            var it = sessionModel.get(i)
+            if (it.projIdx === projIdx) out.push({ start: it.start, end: it.end })
+        }
+        return out
+    }
+    function markModified(projIdx) {
+        var mp = modifiedProjects
+        mp[projIdx] = true
+        modifiedProjects = mp
+    }
     function recalcColWidth() {
         if (projectMeta.length === 0) { colWidth = 80; return }
         var avail = root.width - timeLabelW
@@ -77,7 +95,7 @@ Item {
 
     function loadData() {
         sessionModel.clear()
-        modifiedProjects = {}
+        var modified = {}
         var data = backend.getDayData(dayKey)
         var meta = []
         var descs = {}
@@ -86,21 +104,31 @@ Item {
                 var proj = data[pi]
                 meta.push({ name: proj.project, color: colorPalette[pi % colorPalette.length] })
                 descs[proj.project] = proj.description || ""
+                var raw = []
                 var sessions = proj.sessions || []
                 for (var si = 0; si < sessions.length; si++) {
                     var s = sessions[si]
-                    var sStart = Math.max(s.start, startHour * 60)
-                    var sEnd   = Math.min(s.end,   endHour   * 60)
-                    if (sEnd > sStart) {
-                        // ListModel can't infer a role's type from a literal null in append(),
-                        // so "" is used as the "no task" sentinel here (never null) — converted
-                        // back to null only when serialized to JSON in saveAll().
-                        sessionModel.append({ projIdx: pi, start: sStart, end: sEnd, task: s.task || "" })
-                    }
+                    raw.push({ start: Math.max(s.start, startHour * 60),
+                               end:   Math.min(s.end,   endHour   * 60),
+                               task:  s.task })
+                }
+                // Overlapping blocks (left behind by older versions of this view)
+                // stack on top of each other, so the lower one can't be reached
+                // to delete, and they double-count time. Merge them, and mark the
+                // project modified so Save writes the cleanup back.
+                var clean = SU.normalize(raw)
+                if (clean.length !== sessions.length) modified[pi] = true
+                for (var ci = 0; ci < clean.length; ci++) {
+                    // ListModel can't infer a role's type from a literal null in append(),
+                    // so "" is used as the "no task" sentinel here (never null) — converted
+                    // back to null only when serialized to JSON in saveAll().
+                    sessionModel.append({ projIdx: pi, start: clean[ci].start, end: clean[ci].end,
+                                          task: clean[ci].task || "" })
                 }
             }
         }
         projectMeta = meta
+        modifiedProjects = modified
         descriptions = descs
         recalcColWidth()
     }
@@ -116,7 +144,9 @@ Item {
         for (var pi = 0; pi < projectMeta.length; pi++) {
             var projName = projectMeta[pi].name
             if (modifiedProjects[pi]) {
-                var sessions = byProj[pi] || []
+                var sessions = SU.normalize(byProj[pi] || []).map(function(x) {
+                    return { start: x.start, end: x.end, task: x.task ? x.task : null }
+                })
                 backend.saveDaySessions(dayKey, projName, JSON.stringify(sessions))
             }
             // Always save descriptions (cheap and avoids tracking a separate dirty flag)
@@ -134,7 +164,7 @@ Item {
         Label {
             text: "\u2190 Back"
             font.pixelSize: 14
-            color: backMa.containsMouse ? "#1f2937" : "#6b7280"
+            color: backMa.containsMouse ? "#0f172a" : "#64748b"
             Layout.bottomMargin: 4
             MouseArea {
                 id: backMa
@@ -155,14 +185,14 @@ Item {
                 text: dayKey !== "" ? backend.dayDetailTitle(dayKey) : ""
                 font.pixelSize: 20
                 font.bold: true
-                color: "#1f2937"
+                color: "#0f172a"
                 Layout.fillWidth: true
             }
 
             Rectangle {
                 implicitWidth: addProjLbl.implicitWidth + 20
-                height: 30; radius: 4
-                color: addProjMa.containsMouse ? "#374151" : "#1f2937"
+                height: 30; radius: 8
+                color: addProjMa.containsMouse ? "#4338ca" : "#4f46e5"
                 RowLayout {
                     anchors.centerIn: parent
                     spacing: 4
@@ -197,7 +227,7 @@ Item {
             visible: root.showNotes
             text: dayKey !== "" ? backend.dayDetailTitle(dayKey) : ""
             font.pixelSize: 20; font.bold: true
-            color: "#1f2937"
+            color: "#0f172a"
             Layout.bottomMargin: 10
         }
 
@@ -215,13 +245,13 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     text: "No projects logged for this day"
                     font.pixelSize: 14
-                    color: "#9ca3af"
+                    color: "#94a3b8"
                 }
                 Label {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Click \u201c+ Add Project\u201d to log time for a project on this date"
                     font.pixelSize: 12
-                    color: "#d1d5db"
+                    color: "#cbd5e1"
                 }
             }
         }
@@ -230,9 +260,9 @@ Item {
         Rectangle {
             visible: projectMeta.length > 0 && !root.showNotes
             Layout.fillWidth: true
-            radius: 6
-            color: notesSummaryMa.containsMouse ? "#f0f4ff" : "#ffffff"
-            border.color: notesSummaryMa.containsMouse ? "#93c5fd" : "#e5e7eb"
+            radius: 10
+            color: notesSummaryMa.containsMouse ? "#eef2ff" : "#ffffff"
+            border.color: notesSummaryMa.containsMouse ? "#c7d2fe" : "#e2e8f0"
             border.width: 1
             Layout.bottomMargin: 8
             implicitHeight: notesSummaryCol.implicitHeight + 20
@@ -259,13 +289,13 @@ Item {
                         text: "Daily Notes"
                         font.pixelSize: 12
                         font.bold: true
-                        color: "#6b7280"
+                        color: "#64748b"
                         Layout.fillWidth: true
                     }
                     Label {
                         text: "Edit \u2192"
                         font.pixelSize: 11
-                        color: "#93c5fd"
+                        color: "#c7d2fe"
                     }
                 }
 
@@ -285,7 +315,7 @@ Item {
                             text: projectMeta[index] ? projectMeta[index].name : ""
                             font.pixelSize: 11
                             font.bold: true
-                            color: "#374151"
+                            color: "#1e293b"
                             Layout.preferredWidth: 80
                             elide: Text.ElideRight
                         }
@@ -296,7 +326,7 @@ Item {
                                                   : "No note"
                             font.pixelSize: 11
                             font.italic: note.length === 0
-                            color: note.length > 0 ? "#4b5563" : "#d1d5db"
+                            color: note.length > 0 ? "#475569" : "#cbd5e1"
                             Layout.fillWidth: true
                             elide: Text.ElideRight
                         }
@@ -321,7 +351,7 @@ Item {
                 Label {
                     text: "\u2190 Back to calendar"
                     font.pixelSize: 13
-                    color: notesBackMa.containsMouse ? "#1f2937" : "#6b7280"
+                    color: notesBackMa.containsMouse ? "#0f172a" : "#64748b"
                     MouseArea {
                         id: notesBackMa
                         anchors.fill: parent
@@ -335,7 +365,7 @@ Item {
                     text: "Daily Notes"
                     font.pixelSize: 14
                     font.bold: true
-                    color: "#1f2937"
+                    color: "#0f172a"
                 }
                 Item { Layout.fillWidth: true }
                 // Spacer to balance the back label
@@ -363,9 +393,9 @@ Item {
                         Rectangle {
                             required property int index
                             Layout.fillWidth: true
-                            radius: 6
+                            radius: 10
                             color: "#ffffff"
-                            border.color: "#e5e7eb"
+                            border.color: "#e2e8f0"
                             border.width: 1
                             implicitHeight: noteEditorInner.implicitHeight + 20
 
@@ -385,7 +415,7 @@ Item {
                                         text: projectMeta[index] ? projectMeta[index].name : ""
                                         font.pixelSize: 13
                                         font.bold: true
-                                        color: "#1f2937"
+                                        color: "#0f172a"
                                     }
                                 }
 
@@ -393,9 +423,9 @@ Item {
                                 Rectangle {
                                     Layout.fillWidth: true
                                     height: 90
-                                    radius: 4
-                                    color: bigNoteArea.activeFocus ? "#f0f4ff" : "#f9fafb"
-                                    border.color: bigNoteArea.activeFocus ? "#93c5fd" : "#e5e7eb"
+                                    radius: 8
+                                    color: bigNoteArea.activeFocus ? "#eef2ff" : "#f8fafc"
+                                    border.color: bigNoteArea.activeFocus ? "#c7d2fe" : "#e2e8f0"
                                     border.width: 1
 
                                     Flickable {
@@ -411,14 +441,14 @@ Item {
                                             width: bigNoteFlick.width
                                             wrapMode: TextEdit.Wrap
                                             font.pixelSize: 13
-                                            color: "#1f2937"
+                                            color: "#0f172a"
                                             selectByMouse: true
                                             text: (projectMeta[index] && descriptions[projectMeta[index].name])
                                                   ? descriptions[projectMeta[index].name] : ""
 
                                             Text {
                                                 text: "Add a note about what you worked on..."
-                                                color: "#d1d5db"
+                                                color: "#cbd5e1"
                                                 font.pixelSize: 13
                                                 visible: !bigNoteArea.text && !bigNoteArea.activeFocus
                                             }
@@ -448,8 +478,8 @@ Item {
                 Item { Layout.fillWidth: true }
                 Rectangle {
                     width: doneNotesLbl.implicitWidth + 32; height: 34
-                    radius: 4
-                    color: doneNotesMa.containsMouse ? "#374151" : "#1f2937"
+                    radius: 8
+                    color: doneNotesMa.containsMouse ? "#4338ca" : "#4f46e5"
                     Label {
                         id: doneNotesLbl
                         anchors.centerIn: parent
@@ -566,7 +596,7 @@ Item {
                         width: gridContent.width; height: hourHeight
                         Rectangle {
                             anchors.fill: parent
-                            color: index % 2 === 0 ? "#fafafa" : "#f3f4f6"
+                            color: index % 2 === 0 ? "#f8fafc" : "#f1f5f9"
                         }
                         // Hour label
                         Label {
@@ -580,21 +610,21 @@ Item {
                                 return h12 + ap
                             }
                             font.pixelSize: 9
-                            color: "#9ca3af"
+                            color: "#94a3b8"
                         }
                         // Hour line
                         Rectangle {
                             x: timeLabelW; y: 0
                             width: projectMeta.length * colWidth
                             height: 1
-                            color: "#d1d5db"
+                            color: "#cbd5e1"
                         }
                         // 30-min line
                         Rectangle {
                             x: timeLabelW; y: hourHeight / 2
                             width: projectMeta.length * colWidth
                             height: 1
-                            color: "#e9ebee"
+                            color: "#e2e8f0"
                         }
                     }
                 }
@@ -605,7 +635,7 @@ Item {
                     Rectangle {
                         x: timeLabelW + index * colWidth
                         y: 0; width: 1; height: gridH
-                        color: "#d1d5db"
+                        color: "#cbd5e1"
                     }
                 }
 
@@ -615,6 +645,7 @@ Item {
 
                     Item {
                         id: colBg
+                        objectName: "sessionColumn"
                         required property int index
                         x: timeLabelW + index * colWidth + 1
                         y: 0
@@ -623,46 +654,67 @@ Item {
                         z: 1
 
                         property bool    isDragging:   false
+                        property bool    moved:        false   // past the drag threshold
+                        property real    pressY:       0
                         property int     dragStartMin: 0
                         property int     previewStart: 0
                         property int     previewEnd:   0
+                        // The empty stretch the new block must stay inside, so it
+                        // can never overlap another block of this project.
+                        property int     gapLo:        0
+                        property int     gapHi:        0
+
+                        function endDrag() {
+                            calFlick.interactive = true
+                            colBg.isDragging = false
+                            colBg.moved = false
+                        }
 
                         MouseArea {
                             anchors.fill: parent
                             preventStealing: true
-                            // Blocks (z=2) are above this so they steal events first
+                            // Blocks (z=2) sit above this, but a block's body passes
+                            // clicks through, so presses inside a block land here.
+                            // freeGap() returns null for those and they're rejected;
+                            // previously they stacked a new block on top.
                             onPressed: function(mouse) {
-                                calFlick.interactive = false
                                 var rawMin = yToMinute(mouse.y)
-                                var snapped = snapMin(rawMin)
-                                snapped = clampMin(snapped,
-                                    startHour * 60,
-                                    endHour   * 60 - snapMins)
-                                colBg.dragStartMin = snapped
-                                colBg.previewStart = snapped
-                                colBg.previewEnd   = snapped + snapMins
-                                colBg.isDragging   = true
+                                var gap = SU.freeGap(sessionsFor(colBg.index, -1), rawMin,
+                                                     startHour * 60, endHour * 60)
+                                if (!gap || gap.hi - gap.lo < 1) {
+                                    mouse.accepted = false
+                                    return
+                                }
+                                calFlick.interactive = false
+                                colBg.gapLo = gap.lo
+                                colBg.gapHi = gap.hi
+                                colBg.pressY = mouse.y
+                                colBg.dragStartMin = clampMin(snapMin(rawMin), gap.lo, gap.hi)
+                                colBg.previewStart = colBg.dragStartMin
+                                colBg.previewEnd   = colBg.dragStartMin
+                                colBg.moved = false
+                                colBg.isDragging = true
                             }
                             onPositionChanged: function(mouse) {
                                 if (!colBg.isDragging) return
-                                var rawMin = yToMinute(mouse.y)
-                                var snapped = snapMin(rawMin)
-                                snapped = clampMin(snapped, startHour * 60, endHour * 60)
-                                if (snapped > colBg.dragStartMin) {
-                                    colBg.previewStart = colBg.dragStartMin
-                                    colBg.previewEnd   = Math.max(snapped, colBg.dragStartMin + snapMins)
-                                } else {
-                                    colBg.previewStart = Math.min(snapped, colBg.dragStartMin)
-                                    colBg.previewEnd   = colBg.dragStartMin + snapMins
+                                // A plain click (e.g. a near-miss on a block's ×)
+                                // must not drop a stray block.
+                                if (!colBg.moved && Math.abs(mouse.y - colBg.pressY) < 4) return
+                                colBg.moved = true
+                                var snapped = clampMin(snapMin(yToMinute(mouse.y)), colBg.gapLo, colBg.gapHi)
+                                var a = Math.min(snapped, colBg.dragStartMin)
+                                var b = Math.max(snapped, colBg.dragStartMin)
+                                if (b - a < snapMins) {   // at least one snap step, within the gap
+                                    if (snapped >= colBg.dragStartMin) b = Math.min(colBg.gapHi, a + snapMins)
+                                    else a = Math.max(colBg.gapLo, b - snapMins)
                                 }
+                                colBg.previewStart = a
+                                colBg.previewEnd   = b
                             }
                             onReleased: function(mouse) {
-                                calFlick.interactive = true
-                                if (colBg.isDragging
-                                    && (colBg.previewEnd - colBg.previewStart) >= snapMins) {
-                                    var mp = modifiedProjects
-                                    mp[colBg.index] = true
-                                    modifiedProjects = mp
+                                if (colBg.isDragging && colBg.moved
+                                    && colBg.previewEnd > colBg.previewStart) {
+                                    markModified(colBg.index)
                                     sessionModel.append({
                                         projIdx: colBg.index,
                                         start:   colBg.previewStart,
@@ -670,13 +722,16 @@ Item {
                                         task:    ""
                                     })
                                 }
-                                colBg.isDragging = false
+                                colBg.endDrag()
                             }
+                            // Grab lost mid-drag (focus change etc.). Without this the
+                            // calendar stayed unable to scroll.
+                            onCanceled: colBg.endDrag()
                         }
 
                         // Drag preview
                         Rectangle {
-                            visible: colBg.isDragging
+                            visible: colBg.isDragging && colBg.moved
                             x: 2
                             y: minuteToY(colBg.previewStart)
                             width:  colBg.width - 4
@@ -684,7 +739,7 @@ Item {
                             color:  projectMeta.length > colBg.index
                                     ? projectMeta[colBg.index].color : "#888"
                             opacity: 0.45
-                            radius: 3
+                            radius: 5
 
                             Label {
                                 visible: parent.height > 16
@@ -705,6 +760,7 @@ Item {
 
                     Item {
                         id: blockItem
+                        objectName: "sessionBlock"
                         required property int index
                         required property int projIdx
                         required property int start
@@ -742,60 +798,77 @@ Item {
                                 visible: blockItem.height > 16
                                 anchors { left: parent.left; leftMargin: 3
                                           top: parent.top; topMargin: 2 }
-                                width: parent.width - (showDelete ? 22 : 6)
-                                property bool showDelete: blockHover.containsMouse || blockItem.height < 30
+                                width: parent.width - (blockItem.showDelete ? 22 : 6)
                                 text: fmtMin(blockItem.start) + " – " + fmtMin(blockItem.end)
                                 font.pixelSize: 8
                                 color: "white"
                                 elide: Text.ElideRight
                             }
 
-                            // Delete button — visible on hover or when block is too small to hover
-                            Rectangle {
-                                visible: blockHover.containsMouse || blockItem.height < 30
-                                width: 16; height: 16; radius: 8
-                                color: deleteMa.containsMouse ? "#dc2626" : "#ef4444"
-                                anchors { top: parent.top; right: parent.right
-                                          topMargin: 2; rightMargin: 2 }
-                                z: 4
-                                Label {
-                                    anchors.centerIn: parent
-                                    text: "\u00d7"
-                                    font.pixelSize: 11; font.bold: true
-                                    color: "white"
-                                }
-                                MouseArea {
-                                    id: deleteMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    z: 5
-                                    onClicked: {
-                                        var mp = modifiedProjects
-                                        mp[blockItem.projIdx] = true
-                                        modifiedProjects = mp
-                                        sessionModel.remove(blockItem.index)
-                                    }
+                        }
+
+                        // Delete button. Must be a direct child of the block with a z
+                        // above the resize handles. It used to live inside the block
+                        // rectangle, underneath the handles, which on short (15–30 min)
+                        // blocks covered it completely, so clicking × started a resize
+                        // instead of deleting.
+                        property bool showDelete: blockHover.containsMouse || deleteMa.containsMouse
+                                                  || blockItem.height < 30
+                        Rectangle {
+                            visible: blockItem.showDelete
+                            width: 16; height: 16; radius: 8
+                            color: deleteMa.containsMouse ? "#dc2626" : "#ef4444"
+                            anchors { right: parent.right; rightMargin: 2 }
+                            // Short blocks: center the × on the block instead of
+                            // hanging it off the top edge.
+                            y: blockItem.height < 20 ? (blockItem.height - height) / 2 : 2
+                            z: 10
+                            Label {
+                                anchors.centerIn: parent
+                                text: "×"
+                                font.pixelSize: 11; font.bold: true
+                                color: "white"
+                            }
+                            MouseArea {
+                                id: deleteMa
+                                objectName: "sessionDelete"
+                                anchors.fill: parent
+                                anchors.margins: -3   // slightly larger hit target
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                preventStealing: true
+                                onClicked: {
+                                    markModified(blockItem.projIdx)
+                                    sessionModel.remove(blockItem.index)
                                 }
                             }
                         }
 
                         // ── Top resize handle ─────────────────────
+                        // Thinner on short blocks and never over the × column, so
+                        // the delete button and the block body stay clickable.
                         MouseArea {
                             id: topHandle
+                            objectName: "sessionTopHandle"
                             anchors.top: parent.top
-                            width: parent.width; height: 10
+                            width: parent.width - 22
+                            height: Math.max(3, Math.min(8, Math.floor(blockItem.height / 3)))
                             cursorShape: Qt.SizeVerCursor
                             preventStealing: true
                             z: 3
 
                             property real pressContentY: 0
                             property int  pressStart:    0
+                            property int  minStart:      0   // previous block's end
 
                             onPressed: function(mouse) {
                                 calFlick.interactive = false
                                 var pt = mapToItem(gridContent, mouse.x, mouse.y)
-                                pressContentY           = pt.y
-                                pressStart              = blockItem.start
+                                pressContentY = pt.y
+                                pressStart    = blockItem.start
+                                minStart = SU.resizeBounds(sessionsFor(blockItem.projIdx, blockItem.index),
+                                                           blockItem.start, blockItem.end,
+                                                           startHour * 60, endHour * 60).lo
                                 blockItem.isResizingTop = true
                             }
                             onPositionChanged: function(mouse) {
@@ -803,14 +876,23 @@ Item {
                                 var pt    = mapToItem(gridContent, mouse.x, mouse.y)
                                 var delta = pt.y - pressContentY
                                 var newS  = snapMin(pressStart + delta / minuteH)
-                                newS = clampMin(newS, startHour * 60, blockItem.end - snapMins)
-                                sessionModel.setProperty(blockItem.index, "start", newS)
+                                // Can't grow into the previous block, or shrink below one
+                                // snap step.
+                                // (A block already shorter than a step can't shrink further.)
+                                var maxS = Math.max(Math.min(pressStart, blockItem.end - 1),
+                                                    blockItem.end - snapMins)
+                                newS = clampMin(newS, minStart, maxS)
+                                if (newS !== blockItem.start) {
+                                    sessionModel.setProperty(blockItem.index, "start", newS)
+                                    markModified(blockItem.projIdx)
+                                }
                             }
                             onReleased: {
                                 calFlick.interactive = true
-                                var mp = modifiedProjects
-                                mp[blockItem.projIdx] = true
-                                modifiedProjects = mp
+                                blockItem.isResizingTop = false
+                            }
+                            onCanceled: {
+                                calFlick.interactive = true
                                 blockItem.isResizingTop = false
                             }
                         }
@@ -818,20 +900,26 @@ Item {
                         // ── Bottom resize handle ──────────────────
                         MouseArea {
                             id: bottomHandle
+                            objectName: "sessionBottomHandle"
                             anchors.bottom: parent.bottom
-                            width: parent.width; height: 10
+                            width: parent.width - 22
+                            height: Math.max(3, Math.min(8, Math.floor(blockItem.height / 3)))
                             cursorShape: Qt.SizeVerCursor
                             preventStealing: true
                             z: 3
 
                             property real pressContentY: 0
                             property int  pressEnd:      0
+                            property int  maxEnd:        0   // next block's start
 
                             onPressed: function(mouse) {
                                 calFlick.interactive = false
                                 var pt = mapToItem(gridContent, mouse.x, mouse.y)
-                                pressContentY              = pt.y
-                                pressEnd                   = blockItem.end
+                                pressContentY = pt.y
+                                pressEnd      = blockItem.end
+                                maxEnd = SU.resizeBounds(sessionsFor(blockItem.projIdx, blockItem.index),
+                                                         blockItem.start, blockItem.end,
+                                                         startHour * 60, endHour * 60).hi
                                 blockItem.isResizingBottom = true
                             }
                             onPositionChanged: function(mouse) {
@@ -839,14 +927,21 @@ Item {
                                 var pt    = mapToItem(gridContent, mouse.x, mouse.y)
                                 var delta = pt.y - pressContentY
                                 var newE  = snapMin(pressEnd + delta / minuteH)
-                                newE = clampMin(newE, blockItem.start + snapMins, endHour * 60)
-                                sessionModel.setProperty(blockItem.index, "end", newE)
+                                // Can't grow into the next block, or shrink below one snap step.
+                                var minE = Math.min(Math.max(pressEnd, blockItem.start + 1),
+                                                    blockItem.start + snapMins)
+                                newE = clampMin(newE, minE, maxEnd)
+                                if (newE !== blockItem.end) {
+                                    sessionModel.setProperty(blockItem.index, "end", newE)
+                                    markModified(blockItem.projIdx)
+                                }
                             }
                             onReleased: {
                                 calFlick.interactive = true
-                                var mp = modifiedProjects
-                                mp[blockItem.projIdx] = true
-                                modifiedProjects = mp
+                                blockItem.isResizingBottom = false
+                            }
+                            onCanceled: {
+                                calFlick.interactive = true
                                 blockItem.isResizingBottom = false
                             }
                         }
@@ -860,7 +955,7 @@ Item {
             visible: projectMeta.length > 0 && !root.showNotes
             text: "Drag in column to add time  \u2022  hover block and click \u00d7 to delete  \u2022  drag block edges to resize"
             font.pixelSize: 10
-            color: "#9ca3af"
+            color: "#94a3b8"
             Layout.topMargin: 6
             Layout.bottomMargin: 2
         }
@@ -875,11 +970,11 @@ Item {
 
             Rectangle {
                 width: cancelLbl.implicitWidth + 24; height: 32
-                radius: 4
-                color: cancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
-                border.color: "#e5e7eb"; border.width: 1
+                radius: 8
+                color: cancelMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                border.color: "#e2e8f0"; border.width: 1
                 Label { id: cancelLbl; anchors.centerIn: parent
-                        text: "Cancel"; font.pixelSize: 13; color: "#6b7280" }
+                        text: "Cancel"; font.pixelSize: 13; color: "#64748b" }
                 MouseArea { id: cancelMa; anchors.fill: parent
                             hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: root.back() }
@@ -887,8 +982,8 @@ Item {
 
             Rectangle {
                 width: saveLbl.implicitWidth + 24; height: 32
-                radius: 4
-                color: saveMa.containsMouse ? "#374151" : "#1f2937"
+                radius: 8
+                color: saveMa.containsMouse ? "#4338ca" : "#4f46e5"
                 Label { id: saveLbl; anchors.centerIn: parent
                         text: "Save"; font.pixelSize: 13; color: "#ffffff" }
                 MouseArea { id: saveMa; anchors.fill: parent
@@ -911,7 +1006,7 @@ Item {
 
         background: Rectangle {
             radius: 8; color: "#ffffff"
-            border.color: "#e5e7eb"; border.width: 1
+            border.color: "#e2e8f0"; border.width: 1
         }
 
         contentItem: ColumnLayout {
@@ -920,13 +1015,13 @@ Item {
             Label {
                 text: "Remove from this day?"
                 font.pixelSize: 16; font.bold: true
-                color: "#1f2937"
+                color: "#0f172a"
                 Layout.topMargin: 20; Layout.leftMargin: 16; Layout.rightMargin: 16
                 Layout.bottomMargin: 8
             }
             Label {
                 text: "\u201c" + removeProjectConfirm.projectName + "\u201d and all its time blocks for this day will be deleted."
-                font.pixelSize: 13; color: "#6b7280"
+                font.pixelSize: 13; color: "#64748b"
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
                 Layout.leftMargin: 16; Layout.rightMargin: 16
@@ -939,11 +1034,11 @@ Item {
                 spacing: 8
 
                 Rectangle {
-                    Layout.fillWidth: true; height: 38; radius: 4
-                    color: rmCancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
-                    border.color: "#e5e7eb"; border.width: 1
+                    Layout.fillWidth: true; height: 38; radius: 8
+                    color: rmCancelMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                    border.color: "#e2e8f0"; border.width: 1
                     Label { anchors.centerIn: parent; text: "Cancel"
-                            font.pixelSize: 13; color: "#6b7280" }
+                            font.pixelSize: 13; color: "#64748b" }
                     MouseArea {
                         id: rmCancelMa; anchors.fill: parent
                         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -952,7 +1047,7 @@ Item {
                 }
 
                 Rectangle {
-                    Layout.fillWidth: true; height: 38; radius: 4
+                    Layout.fillWidth: true; height: 38; radius: 8
                     color: rmConfirmMa.containsMouse ? "#b91c1c" : "#dc2626"
                     Label { anchors.centerIn: parent; text: "Remove"
                             font.pixelSize: 13; color: "white" }
@@ -980,7 +1075,7 @@ Item {
         background: Rectangle {
             radius: 8
             color: "#ffffff"
-            border.color: "#e5e7eb"
+            border.color: "#e2e8f0"
             border.width: 1
         }
 
@@ -992,18 +1087,18 @@ Item {
             Item {
                 width: parent.width
                 height: 36
-                Rectangle { anchors.fill: parent; color: "#f9fafb";
+                Rectangle { anchors.fill: parent; color: "#f8fafc";
                             radius: 8
                             Rectangle { anchors.bottom: parent.bottom; width: parent.width;
-                                        height: 8; color: "#f9fafb" } }
+                                        height: 8; color: "#f8fafc" } }
                 Label {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left; anchors.leftMargin: 12
                     text: "Add project to this day"
                     font.pixelSize: 11; font.bold: true
-                    color: "#6b7280"
+                    color: "#64748b"
                 }
-                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#e5e7eb" }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: "#e2e8f0" }
             }
 
             // Project list
@@ -1028,14 +1123,14 @@ Item {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: pickerItemMa.containsMouse && !alreadyAdded ? "#f0f4ff" : "transparent"
+                        color: pickerItemMa.containsMouse && !alreadyAdded ? "#eef2ff" : "transparent"
                     }
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.left: parent.left; anchors.leftMargin: 12
                         text: name
                         font.pixelSize: 13
-                        color: alreadyAdded ? "#d1d5db" : "#1f2937"
+                        color: alreadyAdded ? "#cbd5e1" : "#0f172a"
                         width: parent.width - (alreadyAdded ? 70 : 20)
                         elide: Text.ElideRight
                     }
@@ -1045,7 +1140,7 @@ Item {
                         anchors.right: parent.right; anchors.rightMargin: 12
                         text: "added"
                         font.pixelSize: 11
-                        color: "#d1d5db"
+                        color: "#cbd5e1"
                     }
                     MouseArea {
                         id: pickerItemMa
@@ -1068,7 +1163,7 @@ Item {
                     topPadding: 12; bottomPadding: 12
                     text: "No projects yet.\nCreate one in the Timer tab."
                     font.pixelSize: 12
-                    color: "#9ca3af"
+                    color: "#94a3b8"
                     horizontalAlignment: Text.AlignHCenter
                 }
             }
