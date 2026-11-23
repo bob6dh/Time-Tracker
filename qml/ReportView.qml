@@ -20,7 +20,7 @@ Item {
         width: toastLabel.implicitWidth + 32
         height: 40
         radius: 20
-        color: toastSuccess ? "#16a34a" : "#ef4444"
+        color: toastSuccess ? "#059669" : "#ef4444"
         opacity: 0
         z: 10
 
@@ -68,7 +68,7 @@ Item {
         background: Rectangle {
             radius: 10
             color: "#ffffff"
-            border.color: "#e5e7eb"
+            border.color: "#e2e8f0"
             border.width: 1
         }
 
@@ -96,11 +96,11 @@ Item {
 
                     Label {
                         text: "Export Report"
-                        font.pixelSize: 18; font.bold: true; color: "#1f2937"
+                        font.pixelSize: 18; font.bold: true; color: "#0f172a"
                     }
                     Label {
                         text: "Choose a month and format to export."
-                        font.pixelSize: 13; color: "#6b7280"
+                        font.pixelSize: 13; color: "#64748b"
                     }
                 }
             }
@@ -117,13 +117,13 @@ Item {
                     Layout.fillWidth: true; spacing: 10
 
                     Label {
-                        text: "Year"; font.pixelSize: 13; color: "#6b7280"
+                        text: "Year"; font.pixelSize: 13; color: "#64748b"
                         Layout.preferredWidth: 46
                     }
 
                     Rectangle {
-                        Layout.fillWidth: true; height: 36; radius: 6
-                        color: "#ffffff"; border.color: "#e5e7eb"; border.width: 1
+                        Layout.fillWidth: true; height: 36; radius: 10
+                        color: "#ffffff"; border.color: "#e2e8f0"; border.width: 1
 
                         RowLayout {
                             anchors.fill: parent; anchors.margins: 4; spacing: 0
@@ -131,7 +131,7 @@ Item {
                             Label {
                                 Layout.fillWidth: true
                                 text: exportDialog.selectedYear
-                                font.pixelSize: 14; font.bold: true; color: "#1f2937"
+                                font.pixelSize: 14; font.bold: true; color: "#0f172a"
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
@@ -140,7 +140,7 @@ Item {
                                 spacing: 0
                                 Label {
                                     text: "▲"; font.pixelSize: 9
-                                    color: yearUpMa.containsMouse ? "#2563eb" : "#9ca3af"
+                                    color: yearUpMa.containsMouse ? "#4f46e5" : "#94a3b8"
                                     MouseArea {
                                         id: yearUpMa; anchors.fill: parent; hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
@@ -149,7 +149,7 @@ Item {
                                 }
                                 Label {
                                     text: "▼"; font.pixelSize: 9
-                                    color: yearDownMa.containsMouse ? "#2563eb" : "#9ca3af"
+                                    color: yearDownMa.containsMouse ? "#4f46e5" : "#94a3b8"
                                     MouseArea {
                                         id: yearDownMa; anchors.fill: parent; hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
@@ -166,7 +166,7 @@ Item {
                     Layout.fillWidth: true; spacing: 10
 
                     Label {
-                        text: "Month"; font.pixelSize: 13; color: "#6b7280"
+                        text: "Month"; font.pixelSize: 13; color: "#64748b"
                         Layout.preferredWidth: 46
                     }
 
@@ -182,16 +182,16 @@ Item {
                                 required property int index
                                 property bool selected: exportDialog.selectedMonth === index + 1
 
-                                width: 52; height: 30; radius: 6
-                                color: selected ? "#dbeafe" : (monthMa.containsMouse ? "#f0f7ff" : "#ffffff")
-                                border.color: selected ? "#93c5fd" : "#e5e7eb"
+                                width: 52; height: 30; radius: 10
+                                color: selected ? "#e0e7ff" : (monthMa.containsMouse ? "#f5f7ff" : "#ffffff")
+                                border.color: selected ? "#c7d2fe" : "#e2e8f0"
                                 border.width: 1
 
                                 Label {
                                     anchors.centerIn: parent
                                     text: modelData
                                     font.pixelSize: 12; font.bold: selected
-                                    color: selected ? "#1d4ed8" : "#374151"
+                                    color: selected ? "#4338ca" : "#1e293b"
                                 }
 
                                 MouseArea {
@@ -209,7 +209,7 @@ Item {
                     Layout.fillWidth: true; spacing: 10
 
                     Label {
-                        text: "Format"; font.pixelSize: 13; color: "#6b7280"
+                        text: "Format"; font.pixelSize: 13; color: "#64748b"
                         Layout.preferredWidth: 46
                     }
 
@@ -226,9 +226,9 @@ Item {
                                 required property var modelData
                                 property bool selected: exportDialog.selectedFormat === modelData.key
 
-                                width: formatLbl.implicitWidth + 20; height: 30; radius: 6
-                                color: selected ? "#dbeafe" : (formatMa.containsMouse ? "#f0f7ff" : "#ffffff")
-                                border.color: selected ? "#93c5fd" : "#e5e7eb"
+                                width: formatLbl.implicitWidth + 20; height: 30; radius: 10
+                                color: selected ? "#e0e7ff" : (formatMa.containsMouse ? "#f5f7ff" : "#ffffff")
+                                border.color: selected ? "#c7d2fe" : "#e2e8f0"
                                 border.width: 1
 
                                 Label {
@@ -236,7 +236,7 @@ Item {
                                     anchors.centerIn: parent
                                     text: modelData.label
                                     font.pixelSize: 12; font.bold: selected
-                                    color: selected ? "#1d4ed8" : "#374151"
+                                    color: selected ? "#4338ca" : "#1e293b"
                                 }
 
                                 MouseArea {
@@ -256,13 +256,13 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     Rectangle {
-                        implicitWidth: cancelLbl.implicitWidth + 28; height: 38; radius: 6
-                        color: cancelMa.containsMouse ? "#f3f4f6" : "#ffffff"
-                        border.color: "#e5e7eb"; border.width: 1
+                        implicitWidth: cancelLbl.implicitWidth + 28; height: 38; radius: 10
+                        color: cancelMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                        border.color: "#e2e8f0"; border.width: 1
 
                         Label {
                             id: cancelLbl; anchors.centerIn: parent
-                            text: "Cancel"; font.pixelSize: 13; color: "#6b7280"
+                            text: "Cancel"; font.pixelSize: 13; color: "#64748b"
                         }
                         MouseArea {
                             id: cancelMa; anchors.fill: parent; hoverEnabled: true
@@ -272,8 +272,8 @@ Item {
                     }
 
                     Rectangle {
-                        implicitWidth: exportLbl.implicitWidth + 28; height: 38; radius: 6
-                        color: exportBtnMa.containsMouse ? "#1d4ed8" : "#2563eb"
+                        implicitWidth: exportLbl.implicitWidth + 28; height: 38; radius: 10
+                        color: exportBtnMa.containsMouse ? "#4338ca" : "#4f46e5"
 
                         Label {
                             id: exportLbl; anchors.centerIn: parent
@@ -362,9 +362,9 @@ Item {
                             required property int index
                             width: periodLbl.implicitWidth + 28
                             height: periodLbl.implicitHeight + 10
-                            radius: 4
-                            color: backend.reportPeriod === modelData ? "#1f2937" : "#ffffff"
-                            border.color: "#e5e7eb"
+                            radius: 8
+                            color: backend.reportPeriod === modelData ? "#0f172a" : "#ffffff"
+                            border.color: "#e2e8f0"
                             border.width: backend.reportPeriod === modelData ? 0 : 1
 
                             Label {
@@ -372,7 +372,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                                 font.pixelSize: 14
-                                color: backend.reportPeriod === modelData ? "#ffffff" : "#6b7280"
+                                color: backend.reportPeriod === modelData ? "#ffffff" : "#64748b"
                             }
 
                             MouseArea {
@@ -392,16 +392,16 @@ Item {
                     Rectangle {
                         width: 36
                         height: 36
-                        radius: 4
-                        color: prevMa.containsMouse ? "#f0f0f0" : "#ffffff"
-                        border.color: "#e5e7eb"
+                        radius: 8
+                        color: prevMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                        border.color: "#e2e8f0"
                         border.width: 1
 
                         Label {
                             anchors.centerIn: parent
                             text: "\u2190"
                             font.pixelSize: 16
-                            color: "#6b7280"
+                            color: "#64748b"
                         }
                         MouseArea {
                             id: prevMa
@@ -416,7 +416,7 @@ Item {
                         text: backend.reportLabel
                         font.pixelSize: 15
                         font.bold: true
-                        color: "#1f2937"
+                        color: "#0f172a"
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
                         elide: Text.ElideRight
@@ -425,16 +425,16 @@ Item {
                     Rectangle {
                         width: 36
                         height: 36
-                        radius: 4
-                        color: nextMa.containsMouse ? "#f0f0f0" : "#ffffff"
-                        border.color: "#e5e7eb"
+                        radius: 8
+                        color: nextMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                        border.color: "#e2e8f0"
                         border.width: 1
 
                         Label {
                             anchors.centerIn: parent
                             text: "\u2192"
                             font.pixelSize: 16
-                            color: "#6b7280"
+                            color: "#64748b"
                         }
                         MouseArea {
                             id: nextMa
@@ -450,9 +450,9 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: totalCol.implicitHeight + 24
-                    radius: 6
-                    color: "#eef4ff"
-                    border.color: "#93c5fd"
+                    radius: 10
+                    color: "#eef2ff"
+                    border.color: "#c7d2fe"
                     border.width: 1
 
                     ColumnLayout {
@@ -464,14 +464,15 @@ Item {
                         Label {
                             text: "Total Time"
                             font.pixelSize: 12
-                            color: "#6b7280"
+                            color: "#64748b"
                         }
                         Label {
                             text: backend.reportTotal
                             font.pixelSize: 28
-                            font.family: "Consolas"
+                            font.features: { "tnum": 1 }
+                            font.weight: Font.DemiBold
                             font.bold: true
-                            color: "#1f2937"
+                            color: "#0f172a"
                         }
                     }
                 }
@@ -480,7 +481,7 @@ Item {
                 Label {
                     text: "No time tracked for this period"
                     font.pixelSize: 14
-                    color: "#adb5bd"
+                    color: "#94a3b8"
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: 20
                     visible: reportRepeater.count === 0
@@ -499,9 +500,9 @@ Item {
 
                         Layout.fillWidth: true
                         implicitHeight: reportItemCol.implicitHeight + 24
-                        radius: 6
+                        radius: 10
                         color: "#ffffff"
-                        border.color: "#e5e7eb"
+                        border.color: "#e2e8f0"
                         border.width: 1
 
                         ColumnLayout {
@@ -517,14 +518,15 @@ Item {
                                     text: project
                                     font.pixelSize: 15
                                     font.bold: true
-                                    color: "#1f2937"
+                                    color: "#0f172a"
                                     Layout.fillWidth: true
                                 }
                                 Label {
                                     text: time
                                     font.pixelSize: 14
-                                    font.family: "Consolas"
-                                    color: "#6b7280"
+                                    font.features: { "tnum": 1 }
+                                    font.weight: Font.DemiBold
+                                    color: "#64748b"
                                 }
                             }
 
@@ -532,8 +534,8 @@ Item {
                             Rectangle {
                                 Layout.fillWidth: true
                                 height: 6
-                                radius: 3
-                                color: "#f3f4f6"
+                                radius: 5
+                                color: "#f1f5f9"
 
                                 Rectangle {
                                     width: {
@@ -542,9 +544,9 @@ Item {
                                         return parent.width * (seconds / total)
                                     }
                                     height: parent.height
-                                    radius: 3
+                                    radius: 5
                                     color: {
-                                        var colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
+                                        var colors = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"]
                                         var i = (index !== undefined && index >= 0) ? index : 0
                                         return colors[i % colors.length]
                                     }
@@ -558,9 +560,9 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 40
-                    radius: 6
+                    radius: 10
                     Layout.topMargin: 4
-                    color: xlsxMa.containsMouse ? "#15803d" : "#16a34a"
+                    color: xlsxMa.containsMouse ? "#1e293b" : "#0f172a"
 
                     RowLayout {
                         anchors.centerIn: parent
@@ -593,9 +595,9 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 40
-                    radius: 6
+                    radius: 10
                     Layout.topMargin: 4
-                    color: utilMa.containsMouse ? "#374151" : "#1f2937"
+                    color: utilMa.containsMouse ? "#4338ca" : "#4f46e5"
 
                     RowLayout {
                         anchors.centerIn: parent

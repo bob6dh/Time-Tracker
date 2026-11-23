@@ -27,7 +27,7 @@ Item {
                 Label {
                     text: "\u2190 Back"
                     font.pixelSize: 14
-                    color: backMa.containsMouse ? "#1f2937" : "#6b7280"
+                    color: backMa.containsMouse ? "#0f172a" : "#64748b"
 
                     MouseArea {
                         id: backMa
@@ -43,7 +43,7 @@ Item {
                     text: dayKey !== "" ? backend.dayDetailTitle(dayKey) : ""
                     font.pixelSize: 20
                     font.bold: true
-                    color: "#1f2937"
+                    color: "#0f172a"
                     Layout.bottomMargin: 10
                 }
 
@@ -58,9 +58,9 @@ Item {
 
                         Layout.fillWidth: true
                         implicitHeight: detailItemCol.implicitHeight + 24
-                        radius: 6
+                        radius: 10
                         color: "#ffffff"
-                        border.color: "#e5e7eb"
+                        border.color: "#e2e8f0"
                         border.width: 1
 
                         ColumnLayout {
@@ -76,21 +76,22 @@ Item {
                                     text: project
                                     font.pixelSize: 15
                                     font.bold: true
-                                    color: "#1f2937"
+                                    color: "#0f172a"
                                     Layout.fillWidth: true
                                 }
                                 Label {
                                     text: time
                                     font.pixelSize: 14
-                                    font.family: "Consolas"
-                                    color: "#6b7280"
+                                    font.features: { "tnum": 1 }
+                                    font.weight: Font.DemiBold
+                                    color: "#64748b"
                                 }
                             }
 
                             Label {
                                 text: description || "No summary"
                                 font.pixelSize: 13
-                                color: description ? "#6b7280" : "#adb5bd"
+                                color: description ? "#64748b" : "#94a3b8"
                                 wrapMode: Text.WordWrap
                                 Layout.fillWidth: true
                                 Layout.topMargin: 2

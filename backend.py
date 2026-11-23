@@ -73,6 +73,33 @@ def _daily_backups():
     return sorted(found, reverse=True)
 
 
+def _migrate_data(data):
+    """Bring a loaded/imported/restored data dict up to the current schema:
+    legacy string-format projects to dict form, and per-task/root field
+    defaults for older data files. Shared by load_data(), importJson() and
+    restoreBackup() so all three entry points stay in sync."""
+    data["projects"] = [
+        p if isinstance(p, dict)
+        else {"name": p, "billingCode": "", "billable": True}
+        for p in data.get("projects", [])
+    ]
+    data.setdefault("tasks", [])
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    for t in data["tasks"]:
+        t.setdefault("dueDate", None)
+        # Pre-upgrade tasks have no planDate at all — surface any still-pending
+        # ones once as "carried over" so nothing already on a user's list goes
+        # missing, then let the normal one-day falloff rule take over from there.
+        if "planDate" not in t:
+            t["planDate"] = None if t.get("done") else yesterday
+        t.setdefault("estimateMinutes", None)
+    data.setdefault("idleTimeout", 10)
+    data.setdefault("lastAppOpenDate", None)
+    data.setdefault("activityPrompt", True)
+    data.setdefault("activityPromptSnooze", 15)
+    return data
+
+
 def load_data():
     # A corrupted/missing main file falls back to the rolling backup, then the
     # most recent daily snapshot, before ever resetting to an empty dataset —
@@ -86,17 +113,9 @@ def load_data():
             data = _try_load(backups[0][1])
     if data is None:
         data = {"projects": [], "checkInInterval": 30, "dailyLogs": {}}
-    # Migrate legacy string-format projects to dict format
-    data["projects"] = [
-        p if isinstance(p, dict)
-        else {"name": p, "billingCode": "", "billable": True}
-        for p in data.get("projects", [])
-    ]
-    data.setdefault("tasks", [])
-    for t in data["tasks"]:
-        t.setdefault("dueDate", None)
-    data.setdefault("idleTimeout", 10)
-    return data
+    data.setdefault("checkInInterval", 30)
+    data.setdefault("dailyLogs", {})
+    return _migrate_data(data)
 
 
 def _prune_old_backups():
@@ -225,6 +244,34 @@ def fmt_time(seconds):
     return f"{s}s"
 
 
+def _fmt_minutes(minutes):
+    """Format a task time estimate (whole minutes) as '1h 30m' / '30m'."""
+    if not minutes:
+        return ""
+    h, m = minutes // 60, minutes % 60
+    if h > 0:
+        return f"{h}h {m}m" if m else f"{h}h"
+    return f"{m}m"
+
+
+def _normalize_sessions(sessions):
+    """Sort sessions, drop zero-length ones, and merge any that overlap
+    (end-to-start touching is not an overlap). On merge the earlier session's
+    task tag wins, falling back to the later one's. Mirrors qml/SessionUtils.js
+    normalize()."""
+    out = []
+    for s in sorted((s for s in sessions if s["end"] > s["start"]),
+                    key=lambda s: (s["start"], s["end"])):
+        if out and s["start"] < out[-1]["end"]:
+            last = out[-1]
+            last["end"] = max(last["end"], s["end"])
+            if not last.get("task"):
+                last["task"] = s.get("task")
+        else:
+            out.append({"start": s["start"], "end": s["end"], "task": s.get("task")})
+    return out
+
+
 def fmt_date(d):
     try:
         return datetime.strptime(d, "%Y-%m-%d").strftime("%a, %b %d, %Y")
@@ -301,6 +348,8 @@ class TaskListModel(QAbstractListModel):
     TimeRole = Qt.UserRole + 5
     DueDateRole = Qt.UserRole + 6
     DueDateLabelRole = Qt.UserRole + 7
+    EstimateLabelRole = Qt.UserRole + 8
+    EstimateMinutesRole = Qt.UserRole + 9
 
     def __init__(self, backend, parent=None):
         super().__init__(parent)
@@ -315,12 +364,18 @@ class TaskListModel(QAbstractListModel):
             self.TimeRole: QByteArray(b"timeText"),
             self.DueDateRole: QByteArray(b"dueDate"),
             self.DueDateLabelRole: QByteArray(b"dueDateLabel"),
+            self.EstimateLabelRole: QByteArray(b"estimateLabel"),
+            self.EstimateMinutesRole: QByteArray(b"estimateMinutes"),
         }
 
     def _visible(self):
-        """Return pending (not-done) tasks for the Tasks tab, sorted by due date
-        (undated tasks last), then by creation date."""
-        tasks = [t for t in self._backend._data.get("tasks", []) if not t.get("done")]
+        """Return today's planned (not-done) tasks for the Tasks tab, sorted by
+        due date (undated tasks last), then by creation date."""
+        today = date.today().isoformat()
+        tasks = [
+            t for t in self._backend._data.get("tasks", [])
+            if not t.get("done") and t.get("planDate") == today
+        ]
         return sorted(
             tasks,
             key=lambda t: (t.get("dueDate") or "9999-12-31", t.get("createdDate") or ""),
@@ -348,6 +403,10 @@ class TaskListModel(QAbstractListModel):
         if role == self.DueDateLabelRole:
             due = task.get("dueDate")
             return fmt_date(due) if due else ""
+        if role == self.EstimateLabelRole:
+            return _fmt_minutes(task.get("estimateMinutes"))
+        if role == self.EstimateMinutesRole:
+            return task.get("estimateMinutes") or 0
         return None
 
     def refresh(self):
@@ -614,6 +673,11 @@ class TimeTrackerBackend(QObject):
     jsonTransferDone = Signal(str, bool)  # (message, success)
     archivedProjectsChanged = Signal()
     completedTasksChanged = Signal()
+    tasksChanged = Signal()
+    activityPromptSettingsChanged = Signal()
+    # Fired when keyboard/mouse activity is seen while no timer is running —
+    # the UI shows the "What are you working on?" picker.
+    showActivityPrompt = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -625,6 +689,11 @@ class TimeTrackerBackend(QObject):
         self._last_checkin = None
         self._checkin_shown_at = None
         self._eod_dismissed = False
+        self._current_day = date.today().isoformat()
+        # Activity prompt state: when the picker may next be shown, and
+        # whether it's currently on screen (so it isn't re-fired every tick).
+        self._prompt_snooze_until = 0.0
+        self._prompt_visible = False
 
         self.INACTIVITY_TIMEOUT = 30 * 60  # seconds before auto-stopping if no check-in response
 
@@ -666,6 +735,14 @@ class TimeTrackerBackend(QObject):
     @Property(int, notify=idleTimeoutChanged)
     def idleTimeout(self):
         return self._data["idleTimeout"]
+
+    @Property(bool, notify=activityPromptSettingsChanged)
+    def activityPromptEnabled(self):
+        return bool(self._data.get("activityPrompt", True))
+
+    @Property(int, notify=activityPromptSettingsChanged)
+    def activityPromptSnooze(self):
+        return int(self._data.get("activityPromptSnooze", 15))
 
     @Property(bool, notify=hasTodayLogsChanged)
     def hasTodayLogs(self):
@@ -730,6 +807,16 @@ class TimeTrackerBackend(QObject):
         if self._active_project and self._session_start:
             secs += int(time.time() - self._session_start)
         return fmt_time(secs) if secs > 0 else "0m"
+
+    @Property(str, notify=tasksChanged)
+    def todayEstimateTotal(self):
+        today = date.today().isoformat()
+        minutes = sum(
+            t.get("estimateMinutes") or 0
+            for t in self._data.get("tasks", [])
+            if t.get("planDate") == today
+        )
+        return _fmt_minutes(minutes) if minutes else "0m"
 
     @Property(str, notify=summaryChanged)
     def weekTotal(self):
@@ -879,6 +966,7 @@ class TimeTrackerBackend(QObject):
             self._log_time(int(time.time() - self._session_start))
         self._active_project = name
         self._active_task_id = task_id
+        self._prompt_visible = False
         self._session_start = time.time()
         self._last_checkin = time.time()
         self._elapsed = 0
@@ -894,6 +982,9 @@ class TimeTrackerBackend(QObject):
 
     @Slot()
     def stopTimer(self):
+        # A deliberate stop means "I'm not working on anything right now" —
+        # don't immediately pop the activity picker on the next mouse move.
+        self._snooze_activity_prompt()
         self._stop()
 
     def _stop(self, trim_seconds=0):
@@ -921,8 +1012,8 @@ class TimeTrackerBackend(QObject):
 
     # ── Tasks ──
 
-    @Slot(str, str, str)
-    def addTask(self, title: str, project: str, due_date: str):
+    @Slot(str, str, str, int)
+    def addTask(self, title: str, project: str, due_date: str, estimate_minutes: int = 0):
         title = title.strip()
         if not title or not project:
             return
@@ -934,12 +1025,15 @@ class TimeTrackerBackend(QObject):
             "createdDate": date.today().isoformat(),
             "completedDate": None,
             "dueDate": due_date or None,
+            "planDate": due_date or date.today().isoformat(),
+            "estimateMinutes": estimate_minutes or None,
         })
         save_data(self._data)
         self._task_model.refresh()
+        self.tasksChanged.emit()
 
-    @Slot(str, str, str, str)
-    def editTask(self, task_id: str, title: str, project: str, due_date: str):
+    @Slot(str, str, str, str, int)
+    def editTask(self, task_id: str, title: str, project: str, due_date: str, estimate_minutes: int = 0):
         title = title.strip()
         if not title or not project:
             return
@@ -949,8 +1043,11 @@ class TimeTrackerBackend(QObject):
         task["title"] = title
         task["project"] = project
         task["dueDate"] = due_date or None
+        task["planDate"] = due_date or date.today().isoformat()
+        task["estimateMinutes"] = estimate_minutes or None
         save_data(self._data)
         self._task_model.refresh()
+        self.tasksChanged.emit()
 
     @Slot(str)
     def completeTask(self, task_id: str):
@@ -964,6 +1061,7 @@ class TimeTrackerBackend(QObject):
         save_data(self._data)
         self._task_model.refresh()
         self.completedTasksChanged.emit()
+        self.tasksChanged.emit()
 
     @Slot(str)
     def reopenTask(self, task_id: str):
@@ -972,9 +1070,11 @@ class TimeTrackerBackend(QObject):
             return
         task["done"] = False
         task["completedDate"] = None
+        task["planDate"] = date.today().isoformat()
         save_data(self._data)
         self._task_model.refresh()
         self.completedTasksChanged.emit()
+        self.tasksChanged.emit()
 
     @Slot(str)
     def deleteTask(self, task_id: str):
@@ -986,6 +1086,41 @@ class TimeTrackerBackend(QObject):
         save_data(self._data)
         self._task_model.refresh()
         self.completedTasksChanged.emit()
+        self.tasksChanged.emit()
+
+    @Slot(str)
+    def pullToToday(self, task_id: str):
+        """Move a carried-over task's plan date to today."""
+        task = self._task_by_id(task_id)
+        if not task:
+            return
+        task["planDate"] = date.today().isoformat()
+        save_data(self._data)
+        self._task_model.refresh()
+        self.tasksChanged.emit()
+
+    @Slot(result="QVariantList")
+    def getCarryOverTasks(self):
+        """Pending tasks left over from the most recent day they were planned
+        for (excluding today). Only that single most-recent date is shown, so
+        older leftovers fall out of view instead of piling up."""
+        today = date.today().isoformat()
+        past = [
+            t for t in self._data.get("tasks", [])
+            if not t.get("done") and t.get("planDate") and t["planDate"] < today
+        ]
+        if not past:
+            return []
+        latest = max(t["planDate"] for t in past)
+        return [
+            {
+                "id": t["id"],
+                "title": t["title"],
+                "project": t["project"],
+                "estimateLabel": _fmt_minutes(t.get("estimateMinutes")),
+            }
+            for t in past if t["planDate"] == latest
+        ]
 
     @Slot(result="QVariantList")
     def getCompletedTasks(self):
@@ -1006,6 +1141,18 @@ class TimeTrackerBackend(QObject):
             _proj_name(p) for p in self._data["projects"]
             if not (isinstance(p, dict) and p.get("archived", False))
         ]
+
+    @Slot(result=bool)
+    def checkAndMarkDailyOpen(self):
+        """Called once at startup. Returns True the first time the app is
+        opened on a given calendar day (so the UI can land on Today's Plan),
+        False on any later relaunch that same day."""
+        today = date.today().isoformat()
+        if self._data.get("lastAppOpenDate") == today:
+            return False
+        self._data["lastAppOpenDate"] = today
+        save_data(self._data)
+        return True
 
     @Slot(int)
     def setCheckInInterval(self, minutes):
@@ -1042,6 +1189,83 @@ class TimeTrackerBackend(QObject):
     @Slot()
     def checkInNo(self):
         self.stopTimer()
+
+    @Slot(result="QVariantMap")
+    def primaryAvailableGeometry(self):
+        """Work area of the primary screen (excludes the taskbar), so popups
+        can sit in the bottom-right corner next to the tray."""
+        from PySide6.QtGui import QGuiApplication
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return {"x": 0, "y": 0, "width": 1280, "height": 800}
+        g = screen.availableGeometry()
+        return {"x": g.x(), "y": g.y(), "width": g.width(), "height": g.height()}
+
+    # ── Activity prompt ("What are you working on?") ──
+
+    def _snooze_activity_prompt(self, minutes=None):
+        if minutes is None:
+            minutes = self._data.get("activityPromptSnooze", 15)
+        self._prompt_snooze_until = time.time() + minutes * 60
+        self._prompt_visible = False
+
+    @Slot()
+    def dismissActivityPrompt(self):
+        """User said "Not now" — stay quiet for the configured snooze."""
+        self._snooze_activity_prompt()
+
+    @Slot(int)
+    def snoozeActivityPrompt(self, minutes):
+        self._snooze_activity_prompt(minutes)
+
+    @Slot(bool)
+    def setActivityPromptEnabled(self, enabled):
+        self._data["activityPrompt"] = bool(enabled)
+        save_data(self._data)
+        if not enabled:
+            self._prompt_visible = False
+        self.activityPromptSettingsChanged.emit()
+
+    @Slot(int)
+    def setActivityPromptSnooze(self, minutes):
+        self._data["activityPromptSnooze"] = int(minutes)
+        save_data(self._data)
+        self.activityPromptSettingsChanged.emit()
+
+    @Slot(result="QVariantMap")
+    def getActivityPromptOptions(self):
+        """Choices for the picker: today's pending planned tasks, then active
+        projects ordered by most recently used (so the usual suspects are on top)."""
+        today = date.today().isoformat()
+        tasks = [
+            {"id": t["id"], "title": t["title"], "project": t["project"]}
+            for t in self._data.get("tasks", [])
+            if not t.get("done") and t.get("planDate") == today
+        ]
+        last_used = {}
+        for day_key, log in self._data.get("dailyLogs", {}).items():
+            for proj in log:
+                if day_key > last_used.get(proj, ""):
+                    last_used[proj] = day_key
+        # Stable sort: most recent first, never-used keep their list order.
+        names = sorted(self.getProjectNames(), key=lambda n: last_used.get(n, ""), reverse=True)
+        billable = self._billable_project_names()
+        projects = [{"name": n, "billable": n in billable} for n in names]
+        return {"tasks": tasks, "projects": projects}
+
+    def _check_activity_prompt(self):
+        if self._active_project or self._prompt_visible:
+            return
+        if not self._data.get("activityPrompt", True):
+            return
+        if time.time() < self._prompt_snooze_until:
+            return
+        if not self.getProjectNames():
+            return  # nothing to pick from yet
+        # Input within the last couple of seconds = the user is here.
+        if _idle_seconds() < 2:
+            self._prompt_visible = True
+            self.showActivityPrompt.emit()
 
     @Slot()
     def openEodDialog(self):
@@ -1117,7 +1341,9 @@ class TimeTrackerBackend(QObject):
     @Slot(str, str, str)
     def saveDaySessions(self, day_key: str, project: str, sessions_json: str):
         import json as _json
-        sessions = _json.loads(sessions_json)
+        # Defensive: the editor already prevents overlaps, but never persist
+        # them — overlapping sessions would double-count `seconds`.
+        sessions = _normalize_sessions(_json.loads(sessions_json))
         logs = self._data["dailyLogs"]
         if day_key not in logs or project not in logs[day_key]:
             return
@@ -1355,19 +1581,13 @@ class TimeTrackerBackend(QObject):
                 self.jsonTransferDone.emit("Import failed: not a valid tracker data file", False)
                 return
             snapshot_before_overwrite("pre-import")
-            # Migrate legacy string-format projects
-            new_data["projects"] = [
-                p if isinstance(p, dict)
-                else {"name": p, "billingCode": "", "billable": True}
-                for p in new_data.get("projects", [])
-            ]
-            new_data.setdefault("tasks", [])
-            self._data = new_data
+            self._data = _migrate_data(new_data)
             save_data(self._data)
             self._project_model.refresh()
             self._history_model.refresh()
             self._task_model.refresh()
             self.completedTasksChanged.emit()
+            self.tasksChanged.emit()
             self.hasTodayLogsChanged.emit()
             self.summaryChanged.emit()
             self.jsonTransferDone.emit(f"Imported {os.path.basename(file_path)}", True)
@@ -1438,18 +1658,13 @@ class TimeTrackerBackend(QObject):
         snapshot_before_overwrite("pre-restore")
         if self._active_project:
             self.stopTimer()
-        data["projects"] = [
-            p if isinstance(p, dict)
-            else {"name": p, "billingCode": "", "billable": True}
-            for p in data.get("projects", [])
-        ]
-        data.setdefault("tasks", [])
-        self._data = data
+        self._data = _migrate_data(data)
         save_data(self._data)
         self._project_model.refresh()
         self._history_model.refresh()
         self._task_model.refresh()
         self.completedTasksChanged.emit()
+        self.tasksChanged.emit()
         self.hasTodayLogsChanged.emit()
         self.summaryChanged.emit()
         self.jsonTransferDone.emit("Restored from backup", True)
@@ -1492,6 +1707,11 @@ class TimeTrackerBackend(QObject):
         task_id = session.get("task")
         task = self._task_by_id(task_id) if task_id else None
         self._active_task_id = task_id if task and not task.get("done") else None
+        # A session left running overnight shouldn't vanish from Today's Plan
+        # just because its planDate is still yesterday's.
+        if task and task.get("planDate") != date.today().isoformat():
+            task["planDate"] = date.today().isoformat()
+            save_data(self._data)
 
     @Slot()
     def saveAndStop(self):
@@ -1515,9 +1735,15 @@ class TimeTrackerBackend(QObject):
         start_min = start_dt.hour * 60 + start_dt.minute
         # Clamp to same calendar day
         if end_dt.date() != start_dt.date():
-            end_min = 23 * 60 + 59
+            end_min = 24 * 60
         else:
             end_min = end_dt.hour * 60 + end_dt.minute
+
+        # Sub-minute sessions that don't cross a minute boundary (e.g. switching
+        # projects twice within a minute) would be stored as zero-length blocks:
+        # invisible in the editor, impossible to delete, worth 0 seconds.
+        if end_min <= start_min:
+            return
 
         day_key = start_dt.date().isoformat()
         if day_key not in self._data["dailyLogs"]:
@@ -1578,7 +1804,38 @@ class TimeTrackerBackend(QObject):
             base += int(time.time() - self._session_start)
         return base
 
+    def _roll_over_day(self):
+        """Called once when the calendar date changes while the app is running
+        (it lives in the tray, so this is the normal case, not an edge case).
+        Splits a running session at midnight so each day gets its own time
+        instead of everything after midnight being dropped, re-arms the EOD
+        prompt, and refreshes the date-dependent views."""
+        today = date.today()
+        self._current_day = today.isoformat()
+        if self._active_project and self._session_start:
+            midnight = datetime.combine(today, datetime.min.time()).timestamp()
+            if self._session_start < midnight:
+                self._log_time(int(midnight - self._session_start))
+                self._session_start = midnight
+                self._save_active_session()
+                task = self._task_by_id(self._active_task_id) if self._active_task_id else None
+                if task and not task.get("done"):
+                    task["planDate"] = self._current_day
+                    save_data(self._data)
+        self._eod_dismissed = False
+        self._project_model.refresh()
+        self._history_model.refresh()
+        self._task_model.refresh()
+        self.tasksChanged.emit()
+        self.summaryChanged.emit()
+        self.hasTodayLogsChanged.emit()
+
     def _tick(self):
+        if date.today().isoformat() != self._current_day:
+            self._roll_over_day()
+
+        self._check_activity_prompt()
+
         # Idle detection — auto-stop and exclude the idle tail from what's logged,
         # so time spent away from the keyboard isn't credited to the project/task.
         if self._active_project and self._session_start:

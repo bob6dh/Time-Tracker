@@ -40,7 +40,7 @@ Item {
             Label {
                 text: "\u2190 Back"
                 font.pixelSize: 14
-                color: backMa.containsMouse ? "#1f2937" : "#6b7280"
+                color: backMa.containsMouse ? "#0f172a" : "#64748b"
                 Layout.bottomMargin: 6
                 MouseArea {
                     id: backMa; anchors.fill: parent; hoverEnabled: true
@@ -51,19 +51,19 @@ Item {
 
             Label {
                 text: "Utilization Rate"
-                font.pixelSize: 22; font.bold: true; color: "#1f2937"
+                font.pixelSize: 22; font.bold: true; color: "#0f172a"
                 Layout.bottomMargin: 2
             }
             Label {
                 text: "Calculate how much of your time was spent on billable work."
-                font.pixelSize: 13; color: "#6b7280"
+                font.pixelSize: 13; color: "#64748b"
                 Layout.bottomMargin: 20
             }
 
             // ── Date Range ──────────────────────────────────────────
             Label {
                 text: "Date Range"
-                font.pixelSize: 15; font.bold: true; color: "#374151"
+                font.pixelSize: 15; font.bold: true; color: "#1e293b"
                 Layout.bottomMargin: 8
             }
 
@@ -71,8 +71,8 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: fromInner.implicitHeight + 24
-                radius: 6; color: "#ffffff"
-                border.color: "#e5e7eb"; border.width: 1
+                radius: 10; color: "#ffffff"
+                border.color: "#e2e8f0"; border.width: 1
                 Layout.bottomMargin: 10
 
                 ColumnLayout {
@@ -81,7 +81,7 @@ Item {
                     spacing: 12
 
                     Label {
-                        text: "FROM"; font.pixelSize: 11; font.bold: true; color: "#9ca3af"
+                        text: "FROM"; font.pixelSize: 11; font.bold: true; color: "#94a3b8"
                         font.capitalization: Font.AllUppercase
                     }
 
@@ -97,8 +97,8 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: toInner.implicitHeight + 24
-                radius: 6; color: "#ffffff"
-                border.color: "#e5e7eb"; border.width: 1
+                radius: 10; color: "#ffffff"
+                border.color: "#e2e8f0"; border.width: 1
                 Layout.bottomMargin: 20
 
                 ColumnLayout {
@@ -107,7 +107,7 @@ Item {
                     spacing: 12
 
                     Label {
-                        text: "TO"; font.pixelSize: 11; font.bold: true; color: "#9ca3af"
+                        text: "TO"; font.pixelSize: 11; font.bold: true; color: "#94a3b8"
                         font.capitalization: Font.AllUppercase
                     }
 
@@ -122,12 +122,12 @@ Item {
             // ── Deductions ──────────────────────────────────────────
             Label {
                 text: "Deductions (Optional)"
-                font.pixelSize: 15; font.bold: true; color: "#374151"
+                font.pixelSize: 15; font.bold: true; color: "#1e293b"
                 Layout.bottomMargin: 4
             }
             Label {
                 text: "Hours to deduct from standard hours when calculating the adjusted rate."
-                font.pixelSize: 12; color: "#9ca3af"
+                font.pixelSize: 12; color: "#94a3b8"
                 Layout.bottomMargin: 10
             }
 
@@ -138,17 +138,17 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 4
 
-                    Label { text: "PTO Hours"; font.pixelSize: 13; color: "#6b7280" }
+                    Label { text: "PTO Hours"; font.pixelSize: 13; color: "#64748b" }
                     Rectangle {
-                        Layout.fillWidth: true; height: 36; radius: 4
-                        color: "#f9fafb"
-                        border.color: ptoInput.activeFocus ? "#93c5fd" : "#e5e7eb"
+                        Layout.fillWidth: true; height: 36; radius: 8
+                        color: "#f8fafc"
+                        border.color: ptoInput.activeFocus ? "#c7d2fe" : "#e2e8f0"
                         border.width: 1
 
                         TextInput {
                             id: ptoInput
                             anchors { fill: parent; margins: 10 }
-                            font.pixelSize: 14; color: "#1f2937"
+                            font.pixelSize: 14; color: "#0f172a"
                             verticalAlignment: TextInput.AlignVCenter
                             inputMethodHints: Qt.ImhFormattedNumbersOnly
                             text: utilRoot.ptoHours > 0 ? utilRoot.ptoHours : ""
@@ -157,7 +157,7 @@ Item {
                                 utilRoot.ptoHours = (text === "" || isNaN(v) || v < 0) ? 0 : v
                             }
                             Text {
-                                text: "0"; color: "#d1d5db"; font.pixelSize: 14
+                                text: "0"; color: "#cbd5e1"; font.pixelSize: 14
                                 visible: !ptoInput.text
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -169,17 +169,17 @@ Item {
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 4
 
-                    Label { text: "Holiday Hours"; font.pixelSize: 13; color: "#6b7280" }
+                    Label { text: "Holiday Hours"; font.pixelSize: 13; color: "#64748b" }
                     Rectangle {
-                        Layout.fillWidth: true; height: 36; radius: 4
-                        color: "#f9fafb"
-                        border.color: holInput.activeFocus ? "#93c5fd" : "#e5e7eb"
+                        Layout.fillWidth: true; height: 36; radius: 8
+                        color: "#f8fafc"
+                        border.color: holInput.activeFocus ? "#c7d2fe" : "#e2e8f0"
                         border.width: 1
 
                         TextInput {
                             id: holInput
                             anchors { fill: parent; margins: 10 }
-                            font.pixelSize: 14; color: "#1f2937"
+                            font.pixelSize: 14; color: "#0f172a"
                             verticalAlignment: TextInput.AlignVCenter
                             inputMethodHints: Qt.ImhFormattedNumbersOnly
                             text: utilRoot.holidayHours > 0 ? utilRoot.holidayHours : ""
@@ -188,7 +188,7 @@ Item {
                                 utilRoot.holidayHours = (text === "" || isNaN(v) || v < 0) ? 0 : v
                             }
                             Text {
-                                text: "0"; color: "#d1d5db"; font.pixelSize: 14
+                                text: "0"; color: "#cbd5e1"; font.pixelSize: 14
                                 visible: !holInput.text
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -207,8 +207,8 @@ Item {
 
             // ── Calculate button ────────────────────────────────────
             Rectangle {
-                Layout.fillWidth: true; height: 42; radius: 6
-                color: calcMa.containsMouse ? "#374151" : "#1f2937"
+                Layout.fillWidth: true; height: 42; radius: 10
+                color: calcMa.containsMouse ? "#4338ca" : "#4f46e5"
                 Layout.bottomMargin: 20
 
                 RowLayout {
@@ -232,65 +232,65 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: summaryGrid.implicitHeight + 20
-                    radius: 6; color: "#f9fafb"
-                    border.color: "#e5e7eb"; border.width: 1
+                    radius: 10; color: "#f8fafc"
+                    border.color: "#e2e8f0"; border.width: 1
 
                     Grid {
                         id: summaryGrid
                         anchors { fill: parent; margins: 14 }
                         columns: 2; rowSpacing: 6; columnSpacing: 20
 
-                        Label { text: "Billable hours tracked:"; font.pixelSize: 12; color: "#6b7280" }
+                        Label { text: "Billable hours tracked:"; font.pixelSize: 12; color: "#64748b" }
                         Label {
                             text: utilResult ? (utilResult.billableHours.toFixed(2) + " h") : ""
-                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                            font.pixelSize: 12; font.bold: true; color: "#0f172a"
                         }
 
-                        Label { text: "Total hours tracked:"; font.pixelSize: 12; color: "#6b7280" }
+                        Label { text: "Total hours tracked:"; font.pixelSize: 12; color: "#64748b" }
                         Label {
                             text: utilResult ? (utilResult.totalHours.toFixed(2) + " h") : ""
-                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                            font.pixelSize: 12; font.bold: true; color: "#0f172a"
                         }
 
-                        Label { text: "Working days (Mon–Fri):"; font.pixelSize: 12; color: "#6b7280" }
+                        Label { text: "Working days (Mon–Fri):"; font.pixelSize: 12; color: "#64748b" }
                         Label {
                             text: utilResult ? (utilResult.workingDays + " days") : ""
-                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                            font.pixelSize: 12; font.bold: true; color: "#0f172a"
                         }
 
-                        Label { text: "Standard hours (8h/day):"; font.pixelSize: 12; color: "#6b7280" }
+                        Label { text: "Standard hours (8h/day):"; font.pixelSize: 12; color: "#64748b" }
                         Label {
                             text: utilResult ? (utilResult.standardHours + " h") : ""
-                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                            font.pixelSize: 12; font.bold: true; color: "#0f172a"
                         }
 
                         Label {
                             visible: utilResult ? utilResult.ptoHours > 0 : false
                             text: "PTO hours deducted:"
-                            font.pixelSize: 12; color: "#6b7280"
+                            font.pixelSize: 12; color: "#64748b"
                         }
                         Label {
                             visible: utilResult ? utilResult.ptoHours > 0 : false
                             text: utilResult ? (utilResult.ptoHours + " h") : ""
-                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                            font.pixelSize: 12; font.bold: true; color: "#0f172a"
                         }
 
                         Label {
                             visible: utilResult ? utilResult.holidayHours > 0 : false
                             text: "Holiday hours deducted:"
-                            font.pixelSize: 12; color: "#6b7280"
+                            font.pixelSize: 12; color: "#64748b"
                         }
                         Label {
                             visible: utilResult ? utilResult.holidayHours > 0 : false
                             text: utilResult ? (utilResult.holidayHours + " h") : ""
-                            font.pixelSize: 12; font.bold: true; color: "#1f2937"
+                            font.pixelSize: 12; font.bold: true; color: "#0f172a"
                         }
                     }
                 }
 
                 Label {
                     text: "Utilization Rates"
-                    font.pixelSize: 15; font.bold: true; color: "#374151"
+                    font.pixelSize: 15; font.bold: true; color: "#1e293b"
                 }
 
                 RateCard {
@@ -299,7 +299,7 @@ Item {
                     rateSubtitle: "Billable hours as a share of all tracked hours"
                     rateValue: utilResult ? utilRoot.formatPct(utilResult.rate1) : ""
                     isNA: utilResult ? utilResult.rate1 < 0 : false
-                    accentColor: "#3b82f6"
+                    accentColor: "#6366f1"
                 }
 
                 RateCard {
@@ -340,12 +340,12 @@ Item {
         property string rateSubtitle: ""
         property string rateValue: ""
         property bool isNA: false
-        property string accentColor: "#3b82f6"
+        property string accentColor: "#6366f1"
         property string naReason: "No data available for this range"
 
         implicitHeight: rateCardCol.implicitHeight + 24
-        radius: 6; color: "#ffffff"
-        border.color: "#e5e7eb"; border.width: 1
+        radius: 10; color: "#ffffff"
+        border.color: "#e2e8f0"; border.width: 1
 
         Rectangle {
             width: 4; height: parent.height - 16
@@ -362,18 +362,18 @@ Item {
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
                 Label {
-                    text: rateLabel; font.pixelSize: 13; font.bold: true; color: "#374151"
+                    text: rateLabel; font.pixelSize: 13; font.bold: true; color: "#1e293b"
                     Layout.fillWidth: true; wrapMode: Text.WordWrap
                 }
                 Label {
                     text: isNA ? "N/A" : rateValue
                     font.pixelSize: 24; font.bold: true
-                    color: isNA ? "#9ca3af" : accentColor
+                    color: isNA ? "#94a3b8" : accentColor
                 }
             }
             Label {
                 text: isNA ? naReason : rateSubtitle
-                font.pixelSize: 11; color: "#9ca3af"
+                font.pixelSize: 11; color: "#94a3b8"
                 wrapMode: Text.WordWrap; Layout.fillWidth: true
             }
         }

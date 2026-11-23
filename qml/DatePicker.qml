@@ -36,23 +36,23 @@ ColumnLayout {
     // Year row
     RowLayout {
         Layout.fillWidth: true; spacing: 8
-        Label { text: "Year"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
+        Label { text: "Year"; font.pixelSize: 13; color: "#64748b"; Layout.preferredWidth: 46 }
         Rectangle {
-            Layout.fillWidth: true; height: 36; radius: 6
-            color: "#f9fafb"; border.color: "#e5e7eb"; border.width: 1
+            Layout.fillWidth: true; height: 36; radius: 10
+            color: "#f8fafc"; border.color: "#e2e8f0"; border.width: 1
             RowLayout {
                 anchors.fill: parent; anchors.margins: 4; spacing: 0
                 Label {
                     Layout.fillWidth: true; text: datePicker.year
-                    font.pixelSize: 14; color: "#1f2937"
+                    font.pixelSize: 14; color: "#0f172a"
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                 }
                 ColumnLayout {
                     spacing: 0
-                    Label { text: "▲"; font.pixelSize: 9; color: yearUpMa.containsMouse ? "#1f2937" : "#9ca3af"
+                    Label { text: "▲"; font.pixelSize: 9; color: yearUpMa.containsMouse ? "#0f172a" : "#94a3b8"
                         MouseArea { id: yearUpMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: datePicker.year++ } }
-                    Label { text: "▼"; font.pixelSize: 9; color: yearDownMa.containsMouse ? "#1f2937" : "#9ca3af"
+                    Label { text: "▼"; font.pixelSize: 9; color: yearDownMa.containsMouse ? "#0f172a" : "#94a3b8"
                         MouseArea { id: yearDownMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: if (datePicker.year > datePicker.minYear) datePicker.year-- } }
                 }
@@ -63,7 +63,7 @@ ColumnLayout {
     // Month grid row
     RowLayout {
         Layout.fillWidth: true; spacing: 8; Layout.bottomMargin: 2
-        Label { text: "Month"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
+        Label { text: "Month"; font.pixelSize: 13; color: "#64748b"; Layout.preferredWidth: 46 }
         Grid {
             columns: 4; spacing: 4
             Repeater {
@@ -72,11 +72,11 @@ ColumnLayout {
                     required property string modelData
                     required property int index
                     property bool sel: datePicker.month === index + 1
-                    width: 52; height: 28; radius: 4
-                    color: sel ? "#1f2937" : (monthMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                    border.color: sel ? "transparent" : "#e5e7eb"; border.width: 1
+                    width: 52; height: 28; radius: 8
+                    color: sel ? "#0f172a" : (monthMa.containsMouse ? "#f1f5f9" : "#ffffff")
+                    border.color: sel ? "transparent" : "#e2e8f0"; border.width: 1
                     Label { anchors.centerIn: parent; text: modelData; font.pixelSize: 12; font.bold: sel
-                            color: sel ? "#ffffff" : "#374151" }
+                            color: sel ? "#ffffff" : "#1e293b" }
                     MouseArea { id: monthMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: { datePicker.month = index + 1
                                              datePicker.day = datePicker.clampDay(datePicker.year, datePicker.month, datePicker.day) } }
@@ -88,7 +88,7 @@ ColumnLayout {
     // Day grid row
     RowLayout {
         Layout.fillWidth: true; spacing: 8
-        Label { text: "Day"; font.pixelSize: 13; color: "#6b7280"; Layout.preferredWidth: 46 }
+        Label { text: "Day"; font.pixelSize: 13; color: "#64748b"; Layout.preferredWidth: 46 }
         Grid {
             columns: 7; spacing: 4
             Repeater {
@@ -97,11 +97,11 @@ ColumnLayout {
                     required property int index
                     property int dayNum: index + 1
                     property bool sel: datePicker.day === dayNum
-                    width: 32; height: 26; radius: 4
-                    color: sel ? "#1f2937" : (dayMa.containsMouse ? "#f0f0f0" : "#ffffff")
-                    border.color: sel ? "transparent" : "#e5e7eb"; border.width: 1
+                    width: 32; height: 26; radius: 8
+                    color: sel ? "#0f172a" : (dayMa.containsMouse ? "#f1f5f9" : "#ffffff")
+                    border.color: sel ? "transparent" : "#e2e8f0"; border.width: 1
                     Label { anchors.centerIn: parent; text: dayNum; font.pixelSize: 12; font.bold: sel
-                            color: sel ? "#ffffff" : "#374151" }
+                            color: sel ? "#ffffff" : "#1e293b" }
                     MouseArea { id: dayMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                 onClicked: datePicker.day = dayNum }
                 }

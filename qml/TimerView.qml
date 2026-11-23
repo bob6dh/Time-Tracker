@@ -25,8 +25,8 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: summaryRow.implicitHeight + 20
-                    radius: 6
-                    color: "#1f2937"
+                    radius: 10
+                    color: "#0f172a"
 
                     Row {
                         id: summaryRow
@@ -56,19 +56,19 @@ Item {
                                         text: modelData.value
                                         font.pixelSize: 18
                                         font.bold: true
-                                        color: "#f9fafb"
+                                        color: "#f8fafc"
                                     }
                                     Label {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.billable + " billable"
                                         font.pixelSize: 11
-                                        color: "#4ade80"
+                                        color: "#6ee7b7"
                                     }
                                     Label {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: modelData.label
                                         font.pixelSize: 11
-                                        color: "#9ca3af"
+                                        color: "#94a3b8"
                                     }
                                 }
                             }
@@ -80,9 +80,9 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: activeCol.implicitHeight + 24
-                    radius: 6
-                    color: "#eef4ff"
-                    border.color: "#93c5fd"
+                    radius: 10
+                    color: "#eef2ff"
+                    border.color: "#c7d2fe"
                     border.width: 1
                     visible: backend.activeProject !== ""
 
@@ -95,25 +95,26 @@ Item {
                         Label {
                             text: "Currently tracking"
                             font.pixelSize: 12
-                            color: "#6b7280"
+                            color: "#64748b"
                         }
                         Label {
                             text: backend.activeProject
                             font.pixelSize: 20
                             font.bold: true
-                            color: "#1f2937"
+                            color: "#0f172a"
                         }
                         Label {
                             visible: backend.activeTaskTitle !== ""
                             text: "on: " + backend.activeTaskTitle
                             font.pixelSize: 13
-                            color: "#6b7280"
+                            color: "#64748b"
                         }
                         Label {
                             text: backend.elapsedText
                             font.pixelSize: 36
-                            font.family: "Consolas"
-                            color: "#1f2937"
+                            font.features: { "tnum": 1 }
+                            font.weight: Font.DemiBold
+                            color: "#0f172a"
                             Layout.topMargin: 4
                             Layout.bottomMargin: 10
                         }
@@ -121,7 +122,7 @@ Item {
                         Rectangle {
                             Layout.fillWidth: true
                             height: 36
-                            radius: 4
+                            radius: 8
                             color: stopMa.containsMouse ? "#dc2626" : "#ef4444"
 
                             Label {
@@ -148,7 +149,7 @@ Item {
                 Label {
                     text: "Add a project to get started"
                     font.pixelSize: 14
-                    color: "#adb5bd"
+                    color: "#94a3b8"
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: 30
                     visible: projectRepeater.count === 0
@@ -169,9 +170,9 @@ Item {
 
                         Layout.fillWidth: true
                         height: 70
-                        radius: 6
-                        color: isActive ? "#eef4ff" : "#ffffff"
-                        border.color: isActive ? "#93c5fd" : "#e5e7eb"
+                        radius: 10
+                        color: isActive ? "#eef2ff" : "#ffffff"
+                        border.color: isActive ? "#c7d2fe" : "#e2e8f0"
                         border.width: 1
 
                         Item {
@@ -186,7 +187,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: "\u2715"
                                 font.pixelSize: 15
-                                color: removeMa.containsMouse ? "#ef4444" : "#d1d5db"
+                                color: removeMa.containsMouse ? "#ef4444" : "#cbd5e1"
 
                                 MouseArea {
                                     id: removeMa
@@ -209,8 +210,8 @@ Item {
                                 width: isActive ? (activeLbl.implicitWidth + 20) : (startRow.implicitWidth + 24)
                                 height: 34
                                 radius: 17
-                                color: isActive ? "#dbeafe" : "transparent"
-                                border.color: isActive ? "#93c5fd" : "transparent"
+                                color: isActive ? "#e0e7ff" : "transparent"
+                                border.color: isActive ? "#c7d2fe" : "transparent"
                                 border.width: isActive ? 1 : 0
 
                                 gradient: isActive ? null : startGradient
@@ -218,8 +219,8 @@ Item {
                                 Gradient {
                                     id: startGradient
                                     orientation: Gradient.Horizontal
-                                    GradientStop { position: 0.0; color: startMa.containsMouse ? "#15803d" : "#16a34a" }
-                                    GradientStop { position: 1.0; color: startMa.containsMouse ? "#166534" : "#15803d" }
+                                    GradientStop { position: 0.0; color: startMa.containsMouse ? "#4338ca" : "#4f46e5" }
+                                    GradientStop { position: 1.0; color: startMa.containsMouse ? "#4338ca" : "#4f46e5" }
                                 }
 
                                 Label {
@@ -229,7 +230,7 @@ Item {
                                     text: "● Active"
                                     font.pixelSize: 12
                                     font.bold: true
-                                    color: "#2563eb"
+                                    color: "#4f46e5"
                                 }
 
                                 Row {
@@ -275,7 +276,7 @@ Item {
                                     text: name
                                     font.pixelSize: 15
                                     font.bold: true
-                                    color: isActive ? "#2563eb" : "#1f2937"
+                                    color: isActive ? "#4f46e5" : "#0f172a"
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                 }
@@ -286,39 +287,39 @@ Item {
 
                                     // Billable badge
                                     Rectangle {
-                                        height: 16; radius: 3
+                                        height: 16; radius: 5
                                         width: billableLbl.implicitWidth + 8
-                                        color: billable ? "#dcfce7" : "#f3f4f6"
+                                        color: billable ? "#d1fae5" : "#f1f5f9"
 
                                         Label {
                                             id: billableLbl
                                             anchors.centerIn: parent
                                             text: billable ? "$ Billable" : "Non-billable"
                                             font.pixelSize: 10
-                                            color: billable ? "#16a34a" : "#9ca3af"
+                                            color: billable ? "#059669" : "#94a3b8"
                                         }
                                     }
 
                                     // Billing code tag (only if set)
                                     Rectangle {
                                         visible: billingCode !== ""
-                                        height: 16; radius: 3
+                                        height: 16; radius: 5
                                         width: codeLabel.implicitWidth + 8
-                                        color: "#f0f4ff"
+                                        color: "#eef2ff"
 
                                         Label {
                                             id: codeLabel
                                             anchors.centerIn: parent
                                             text: billingCode
                                             font.pixelSize: 10
-                                            color: "#4a86c8"
+                                            color: "#4f46e5"
                                         }
                                     }
 
                                     Label {
                                         text: "· Today: " + todayTime
                                         font.pixelSize: 11
-                                        color: "#9ca3af"
+                                        color: "#94a3b8"
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
@@ -331,9 +332,9 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 40
-                    radius: 4
-                    color: eodMa.containsMouse ? "#f0f0f0" : "#ffffff"
-                    border.color: "#e5e7eb"
+                    radius: 8
+                    color: eodMa.containsMouse ? "#f1f5f9" : "#ffffff"
+                    border.color: "#e2e8f0"
                     border.width: 1
                     visible: backend.hasTodayLogs
                     Layout.topMargin: 8
@@ -342,7 +343,7 @@ Item {
                         anchors.centerIn: parent
                         text: "Write daily summary"
                         font.pixelSize: 14
-                        color: "#6b7280"
+                        color: "#64748b"
                     }
                     MouseArea {
                         id: eodMa
@@ -357,8 +358,8 @@ Item {
                 Rectangle {
                     Layout.fillWidth: true
                     height: 40
-                    radius: 4
-                    color: newProjMa.containsMouse ? "#374151" : "#1f2937"
+                    radius: 8
+                    color: newProjMa.containsMouse ? "#4338ca" : "#4f46e5"
                     Layout.topMargin: 6
 
                     Row {
